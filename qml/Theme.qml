@@ -3,7 +3,10 @@
 import QtQuick
 
 QtObject {
+    // A platform theme that doesn't say (qtengine, under atrium) still gives
+    // the palette: a dark window means dark.
     readonly property bool dark: Qt.styleHints.colorScheme === Qt.ColorScheme.Dark
+        || (Qt.styleHints.colorScheme === Qt.ColorScheme.Unknown && system.window.hslLightness < 0.5)
     readonly property SystemPalette system: SystemPalette {}
 
     readonly property color window: dark ? "#1c1c1e" : "#f5f5f7"

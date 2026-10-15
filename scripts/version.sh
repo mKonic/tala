@@ -24,7 +24,11 @@ if git -C "$HERE" rev-parse --git-dir >/dev/null 2>&1; then
         commits=$(git -C "$HERE" rev-list --count HEAD 2>/dev/null || echo 0)
         [ "$commits" -gt 0 ] && code=$((10000 + commits))
     fi
-    name=$(git -C "$HERE" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo unknown)
+    name=$(git -C "$HERE" describe --tags --match 'v[0-9]*' --always 2>/dev/null || echo unknown)
+    # Dirty is an edit to the sources; makepkg rewriting the PKGBUILD's pkgver= line isn't one.
+    if [ "$name" != unknown ] && ! git -C "$HERE" diff --quiet HEAD -- . ':(exclude)packaging/PKGBUILD' 2>/dev/null; then
+        name="$name-dirty"
+    fi
 fi
 
 case "${1:-both}" in

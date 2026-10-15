@@ -21,7 +21,10 @@ Window {
     property string notice: ""
     property bool menu: false
     property double hiddenUntil: 0  // ms; the resting pill is away until then
-    readonly property bool resting: !active && hiddenUntil === 0
+    // At rest the bar is away unless asked for (Flow's "Show Flow Bar at
+    // all times"); the tray says Tala is there.
+    readonly property bool showResting: { tala.revision; return tala.setting("bar_resting", "0") === "1" }
+    readonly property bool resting: !active && hiddenUntil === 0 && showResting
 
     // Only the pill and the bubble take clicks; the rest of the window lets
     // them through to whatever is underneath.
