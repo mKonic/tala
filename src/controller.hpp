@@ -102,7 +102,7 @@ private:
     enum class State { Idle, Recording, Processing };
 
     void onPressed(const QString& id);
-    void onReleased(const QString& id);
+    void onReleased(const QString& id, bool cancelled);
     void begin(bool locked);
     void finish();
     void discard(bool chime = true);
@@ -130,6 +130,7 @@ private:
     double peak_ = 0;  // loudest block of this recording
     QString problem_;
     int revision_ = 0;
+    int run_ = 0;  // counts dictations, for timers that outlive one
     QString app_;  // where the dictation started
     QElapsedTimer held_;
     QTimer tapWindow_;  // after a quick tap: waiting for the second one

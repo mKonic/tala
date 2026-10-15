@@ -84,7 +84,9 @@ Controller::Controller(Store& store, QObject* parent)
     // Flow's Windows keys, with Super for Win. Paste/copy last are Flow's
     // Windows ones too: they don't collide with the dictation chords.
     shortcuts_->bind({
-        {"dictate", tr("Dictate (hold; double-tap for hands-free)"), "CTRL+LOGO+d"},
+        // Flow's own: Ctrl+Win held alone. Only atrium binds modifiers alone.
+        {"dictate", tr("Dictate (hold; double-tap for hands-free)"),
+         Shortcuts::escapeWorks() ? "CTRL+LOGO" : "CTRL+LOGO+d"},
         {"hands-free", tr("Hands-free dictation (press to start and stop)"), "CTRL+LOGO+space"},
         {"cancel", tr("Cancel dictation"), "CTRL+LOGO+BackSpace"},
         {"paste-last", tr("Paste last transcript"), "SHIFT+ALT+z"},
@@ -145,6 +147,7 @@ void Controller::setState(State s) {
     if (state_ == s)
         return;
     state_ = s;
+    shortcuts_->setEscape(s == State::Recording);
     if (s != State::Recording) {
         level_ = 0;
         emit levelChanged();
@@ -192,7 +195,7 @@ void Controller::onPressed(const QString& id) {
             else
                 finish();
         }
-    } else if (id == "cancel") {
+    } else if (id == "cancel" || id == "escape") {
         cancel();
     } else if (id == "paste-last") {
         pasteLast();
@@ -201,10 +204,16 @@ void Controller::onPressed(const QString& id) {
     }
 }
 
-void Controller::onReleased(const QString& id) {
+void Controller::onReleased(const QString& id, bool cancelled) {
     if (id != "dictate")
         return;
     pttDown_ = false;
+    // Ctrl+Super was the start of another shortcut (Ctrl+Super+L): not a
+    // dictation after all.
+    if (cancelled && state_ == State::Recording && !locked_) {
+        discard(false);
+        return;
+    }
     if (state_ != State::Recording || locked_)
         return;
     if (held_.elapsed() < kTapMs) {
@@ -235,8 +244,13 @@ void Controller::begin(bool locked) {
     peak_ = 0;
     held_.start();
     limit_.start();
+    // A moment late: a modifier-only chord that turns out to be the start of
+    // another shortcut (Ctrl+Super+L) is dropped before it chimes.
     if (store_.flag("sounds", true))
-        recorder_->chime(Recorder::Chime::Start);
+        QTimer::singleShot(150, this, [this, run = ++run_] {
+            if (state_ == State::Recording && run == run_)
+                recorder_->chime(Recorder::Chime::Start);
+        });
     setState(State::Recording);
     engine_->start();
 }

@@ -146,13 +146,56 @@ void Shortcuts::onBindResponse(uint code, const QVariantMap& results) {
 }
 
 void Shortcuts::onActivated(const QDBusObjectPath& session, const QString& id, qulonglong, const QVariantMap&) {
-    if (session.path() == session_)
+    if (session.path() == session_ || (session.path() == escape_ && !escape_.isEmpty()))
         emit pressed(id);
 }
 
-void Shortcuts::onDeactivated(const QDBusObjectPath& session, const QString& id, qulonglong, const QVariantMap&) {
+void Shortcuts::onDeactivated(const QDBusObjectPath& session, const QString& id, qulonglong, const QVariantMap& options) {
     if (session.path() == session_)
-        emit released(id);
+        emit released(id, options.value("cancelled").toBool());
+}
+
+bool Shortcuts::escapeWorks() {
+    return qEnvironmentVariable("XDG_CURRENT_DESKTOP").split(':').contains("atrium", Qt::CaseInsensitive);
+}
+
+void Shortcuts::setEscape(bool on) {
+    escapeWanted_ = on;
+    if (!available_ || !escapeWorks())
+        return;
+    if (!on) {
+        if (!escape_.isEmpty()) {
+            bus().asyncCall(QDBusMessage::createMethodCall(kService, escape_, "org.freedesktop.portal.Session", "Close"));
+            escape_.clear();
+        }
+        return;
+    }
+    if (!escape_.isEmpty() || escapePending_)
+        return;
+    escapePending_ = true;
+    QDBusConnection bus = this->bus();
+    const QString token = QStringLiteral("tala%1").arg(++tokens_);
+    bus.connect(kService, requestPath(token), kRequest, "Response", this, SLOT(onEscapeSession(uint, QVariantMap)));
+    QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kIface, "CreateSession");
+    m << QVariantMap{{"handle_token", token}, {"session_handle_token", QStringLiteral("tala_escape%1").arg(tokens_)}};
+    bus.asyncCall(m);
+}
+
+void Shortcuts::onEscapeSession(uint code, const QVariantMap& results) {
+    escapePending_ = false;
+    if (code != 0)
+        return;
+    escape_ = results.value("session_handle").toString();
+    if (!escapeWanted_) {  // done dictating already
+        setEscape(false);
+        return;
+    }
+    PortalShortcuts list{{QStringLiteral("escape"),
+                          {{"description", tr("Cancel dictation (only while dictating)")}, {"preferred_trigger", "Escape"}}}};
+    QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kIface, "BindShortcuts");
+    m << QVariant::fromValue(QDBusObjectPath(escape_)) << QVariant::fromValue(list) << QString()
+      << QVariantMap{{"handle_token", QStringLiteral("tala%1").arg(++tokens_)}};
+    bus().asyncCall(m);
 }
 
 void Shortcuts::onShortcutsChanged(const QDBusMessage& message) {
