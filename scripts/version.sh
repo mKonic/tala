@@ -31,10 +31,11 @@ case "${1:-both}" in
     code) echo "$code" ;;
     name) echo "$name" ;;
     both) echo "$code $name" ;;
-    # pacman's order: 1.2.r3.gabc1234 after a tag, r<commits>.g<hash> before one.
+    # pacman's order: 1.2.3 on a tag, 1.2.3.r4.gabc1234 after one, r<commits>.g<hash> before
+    # any; a pre-release's hyphens are underscores (pacman allows none).
     pkgver)
         if desc=$(git -C "$HERE" describe --tags --long --match 'v[0-9]*' 2>/dev/null); then
-            echo "$desc" | sed 's/^v//; s/-\([0-9]*\)-g/.r\1.g/'
+            echo "$desc" | sed -E 's/^v//; s/-0-g[0-9a-f]+$//; s/-([0-9]+)-g([0-9a-f]+)$/.r\1.g\2/; s/-/_/g'
         else
             printf 'r%s.g%s\n' "$(git -C "$HERE" rev-list --count HEAD)" "$(git -C "$HERE" rev-parse --short HEAD)"
         fi

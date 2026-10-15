@@ -1,0 +1,80 @@
+name: Release
+
+# Builds the Arch package and publishes it as the release of a v* tag pushed (or one given by hand).
+# The filter only narrows to v*; the check below holds the tag to the full semver grammar.
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Set up the build machine
+        run: |
+          pacman -Syu --noconfirm --needed git github-cli
+          git config --global --add safe.directory '*'
+
+      - name: Clone repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TAG }}
+          # scripts/version.sh counts commits and describes against tags - a shallow clone gets both wrong.
+          fetch-depth: 0
+
+      - name: Check the tag is the version
+        run: |
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          echo "$TAG" | grep -Eq "$semver" || { echo "$TAG is not a semver tag (vMAJOR.MINOR.PATCH)." >&2; exit 1; }
+          name=$(bash scripts/version.sh name)
+          [ "$name" = "$TAG" ] || { echo "scripts/version.sh reports $name, not $TAG" >&2; exit 1; }
+          echo "Releasing $TAG, build $(bash scripts/version.sh code)"
+
+      # makepkg won't run as root: a user of its own, allowed to install the build's dependencies.
+      - name: Build the package
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE/packaging' && makepkg --syncdeps --noconfirm"
+          mkdir -p dist
+          cp packaging/*.pkg.tar.zst dist/
+          ls -l dist
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Everything since the previous release.
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$TAG^" 2> /dev/null || true)
+          git log --format='- %s' "${previous:+$previous..}$TAG" > notes.md
+
+          # A semver pre-release (a -suffix ahead of any +build) is published as one.
+          prerelease=()
+          case "${TAG%%+*}" in *-*) prerelease=(--prerelease) ;; esac
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.pkg.tar.zst --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" dist/*.pkg.tar.zst --verify-tag "${prerelease[@]}" --title "Tala $TAG" --notes-file notes.md
+          fi
