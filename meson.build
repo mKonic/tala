@@ -51,3 +51,4 @@ executable('tala',
 subdir('tests')
 
 install_data('data/io.github.mkonic.Tala.desktop', install_dir: get_option('datadir') / 'applications')
+install_data('data/icons/io.github.mkonic.Tala.svg', install_dir: get_option('datadir') / 'icons/hicolor/scalable/apps')

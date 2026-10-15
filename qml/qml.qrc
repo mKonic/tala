@@ -16,4 +16,7 @@
     <file>StylePage.qml</file>
     <file>SettingsPage.qml</file>
   </qresource>
+  <qresource prefix="/tala/icons">
+    <file alias="tala.svg">../data/icons/io.github.mkonic.Tala.svg</file>
+  </qresource>
 </RCC>

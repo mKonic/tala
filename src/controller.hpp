@@ -77,6 +77,7 @@ public:
     Q_INVOKABLE QString setting(const QString& key, const QString& fallback = {}) const;
     Q_INVOKABLE void setSetting(const QString& key, const QString& value);
     Q_INVOKABLE void configureShortcuts();
+    Q_INVOKABLE void openHub() { emit showHub(); }
     // An autostart entry in $XDG_CONFIG_HOME/autostart.
     Q_INVOKABLE bool autostart() const;
     Q_INVOKABLE void setAutostart(bool on);

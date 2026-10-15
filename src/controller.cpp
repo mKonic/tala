@@ -499,7 +499,7 @@ void Controller::setAutostart(bool on) {
         QFile f(autostartPath());
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
             f.write("[Desktop Entry]\nType=Application\nName=tala\nComment=Dictation, waiting for its key\n"
-                    "Exec=tala --background\nIcon=audio-input-microphone\nNoDisplay=true\n");
+                    "Exec=tala --background\nIcon=io.github.mkonic.Tala\nNoDisplay=true\n");
     } else {
         QFile::remove(autostartPath());
     }

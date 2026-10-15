@@ -70,7 +70,8 @@ int main(int argc, char** argv) {
     app.setApplicationName("tala");
     app.setApplicationVersion(TALA_VERSION);
     app.setQuitOnLastWindowClosed(false);
-    app.setWindowIcon(QIcon::fromTheme("audio-input-microphone"));
+    const QIcon icon(QStringLiteral(":/tala/icons/tala.svg"));
+    app.setWindowIcon(QIcon::fromTheme("io.github.mkonic.Tala", icon));
 
     QCommandLineParser args;
     args.setApplicationDescription("Dictation: hold a key, speak, and the text is typed where the cursor is.");
@@ -140,7 +141,7 @@ int main(int argc, char** argv) {
         }
     });
 
-    QSystemTrayIcon tray(QIcon::fromTheme("audio-input-microphone"));
+    QSystemTrayIcon tray(app.windowIcon());
     QMenu menu;
     menu.addAction(QObject::tr("Open tala"), showHub);
     menu.addAction(QObject::tr("Paste last transcript"), &controller, &Controller::pasteLast);
