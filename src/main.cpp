@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
     QApplication app(argc, argv);
     QSocketNotifier quitNotifier(signalfd(-1, &quitSignals, SFD_CLOEXEC | SFD_NONBLOCK), QSocketNotifier::Read);
     QObject::connect(&quitNotifier, &QSocketNotifier::activated, &app, &QApplication::quit);
-    app.setApplicationName("tala");
-    app.setApplicationDisplayName("Tala");
+    // What the tray shows (Qt takes the tray item's title from it).
+    app.setApplicationName("Tala");
     app.setApplicationVersion(TALA_VERSION);
     app.setQuitOnLastWindowClosed(false);
     const QIcon icon(QStringLiteral(":/tala/icons/tala.svg"));
