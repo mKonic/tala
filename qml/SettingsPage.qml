@@ -140,15 +140,6 @@ Flickable {
                 TSwitch {
                     theme: page.theme
                     Layout.fillWidth: true
-                    title: qsTr("Show the bar at all times")
-                    detail: qsTr("A small bar at the bottom of the screen while you're not dictating: click it to start, right-click for the microphone. Off, the bar shows only while you dictate.")
-                    checked: { tala.revision; return tala.setting("bar_resting", "0") === "1" }
-                    onToggled: on => tala.setSetting("bar_resting", on ? "1" : "0")
-                }
-                Line {}
-                TSwitch {
-                    theme: page.theme
-                    Layout.fillWidth: true
                     title: qsTr("Context awareness")
                     detail: qsTr("Reads the few words before the cursor, so dictating into the middle of a sentence gets its spacing and capitals right. It turns on the desktop's accessibility, which apps use to show their text to screen readers; nothing leaves this computer.")
                     checked: { tala.revision; return tala.setting("context", "0") === "1" }

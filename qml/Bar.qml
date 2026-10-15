@@ -1,7 +1,6 @@
-// The bar at the bottom of the screen (Wispr Flow's Flow Bar): a small pill
-// at rest, a waveform while listening, dots while the model works. A click
-// on the resting pill starts hands-free dictation; a right click has
-// the microphone to use, "Hide for 1 hour" and "Open Tala".
+// The bar at the bottom of the screen (Wispr Flow's Flow Bar): a waveform
+// while listening, dots while the model works, and Tala's notices. Nothing
+// at rest; the tray says Tala is there.
 import QtQuick
 import QtQuick.Window
 
@@ -10,21 +9,13 @@ Window {
     // Out of a quick note's screenshot.
     Binding { target: win.contentItem; property: "opacity"; value: tala.capturing ? 0 : 1 }
     width: 360
-    // Taller while the menu is open (its microphones); the surface is
-    // anchored at the bottom, so it grows upward.
-    height: menu ? Math.max(104, menuRow.implicitHeight + 72) : 104
+    height: 104
     visible: false  // shown once it is a layer surface (main.cpp)
     color: "transparent"
     flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
 
     readonly property bool active: tala.state !== "idle"
     property string notice: ""
-    property bool menu: false
-    property double hiddenUntil: 0  // ms; the resting pill is away until then
-    // At rest the bar is away unless asked for (Flow's "Show Flow Bar at
-    // all times"); the tray says Tala is there.
-    readonly property bool showResting: { tala.revision; return tala.setting("bar_resting", "0") === "1" }
-    readonly property bool resting: !active && hiddenUntil === 0 && showResting
 
     // Only the pill and the bubble take clicks; the rest of the window lets
     // them through to whatever is underneath.
@@ -44,19 +35,15 @@ Window {
     Connections {
         target: tala
         function onNotice(text) {
-            win.menu = false
             win.notice = text
             noticeTimer.restart()
         }
         function onStateChanged() {
-            win.menu = false
             if (tala.state === "recording")
                 win.levels = []
         }
     }
     Timer { id: noticeTimer; interval: 4500; onTriggered: win.notice = "" }
-    // When "Hide for 1 hour" runs out.
-    Timer { id: hideTimer; interval: 3600000; onTriggered: win.hiddenUntil = 0 }
 
     // Loudness sampled at a steady pace, so the bars move like speech
     // rather than flicker at the audio's block rate.
@@ -72,20 +59,17 @@ Window {
         }
     }
 
-    readonly property string bubbleText: notice !== "" ? notice
-        : hover.hovered && resting && !menu
-          ? (tala.triggers.dictate ? qsTr("Click, or hold %1, to dictate").arg(tala.triggers.dictate) : qsTr("Click to dictate"))
-          : ""
+    readonly property string bubbleText: notice
 
     Rectangle {
         id: bubble
-        visible: win.bubbleText !== "" || win.menu
+        visible: win.bubbleText !== ""
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: pill.top
         anchors.bottomMargin: 8
-        width: win.menu ? menuRow.implicitWidth + 12 : Math.min(noticeText.implicitWidth + 28, win.width - 8)
-        height: win.menu ? menuRow.implicitHeight + 12 : noticeText.implicitHeight + 16
-        radius: win.menu ? 12 : height / 2
+        width: Math.min(noticeText.implicitWidth + 28, win.width - 8)
+        height: noticeText.implicitHeight + 16
+        radius: height / 2
         color: "#ee141416"
         border.color: "#33ffffff"
         border.width: 1
@@ -94,7 +78,6 @@ Window {
         onHeightChanged: win.maskLater()
         Text {
             id: noticeText
-            visible: !win.menu
             anchors.centerIn: parent
             width: Math.min(implicitWidth, win.width - 36)
             text: win.bubbleText
@@ -102,90 +85,18 @@ Window {
             font.pixelSize: 13
             elide: Text.ElideRight
         }
-        Column {
-            id: menuRow
-            visible: win.menu
-            anchors.centerIn: parent
-            spacing: 2
-            readonly property string mic: { tala.revision; return tala.setting("mic", "") }
-            readonly property var items: [{ kind: "head", text: qsTr("Microphone") },
-                                          { kind: "mic", name: "", text: qsTr("Auto") }]
-                .concat(tala.devices.map(d => ({ kind: "mic", name: d.name, text: d.description })))
-                .concat([{ kind: "line" },
-                         { kind: "hide", text: qsTr("Hide for 1 hour") },
-                         { kind: "open", text: qsTr("Open Tala") }])
-            Repeater {
-                model: menuRow.items
-                Rectangle {
-                    required property var modelData
-                    readonly property bool action: modelData.kind !== "head" && modelData.kind !== "line"
-                    width: 240
-                    height: modelData.kind === "line" ? 9 : modelData.kind === "head" ? 24 : 28
-                    radius: 8
-                    color: action && itemHover.hovered ? "#33ffffff" : "transparent"
-                    Rectangle {
-                        visible: modelData.kind === "line"
-                        anchors.centerIn: parent
-                        width: parent.width - 16
-                        height: 1
-                        color: "#33ffffff"
-                    }
-                    Text {
-                        visible: modelData.kind === "mic" && modelData.name === menuRow.mic
-                        x: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "✓"
-                        color: "white"
-                        font.pixelSize: 13
-                    }
-                    HoverHandler { id: itemHover; enabled: parent.action }
-                    TapHandler {
-                        enabled: parent.action
-                        onTapped: {
-                            win.menu = false
-                            const k = modelData.kind
-                            if (k === "mic") {
-                                tala.setSetting("mic", modelData.name)
-                            } else if (k === "hide") {
-                                win.hiddenUntil = Date.now() + hideTimer.interval
-                                hideTimer.restart()
-                            } else if (k === "open") {
-                                tala.openHub()
-                            }
-                        }
-                    }
-                    Text {
-                        id: label
-                        x: 28
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: Math.min(implicitWidth, parent.width - 38)
-                        elide: Text.ElideRight
-                        text: modelData.text ?? ""
-                        color: modelData.kind === "head" ? "#99ffffff" : "white"
-                        font.pixelSize: modelData.kind === "head" ? 11 : 13
-                    }
-                }
-            }
-        }
-        HoverHandler { id: bubbleHover }
-    }
-    // The menu goes when the pointer has left it a moment.
-    Timer {
-        running: win.menu && !bubbleHover.hovered && !hover.hovered
-        interval: 1500
-        onTriggered: win.menu = false
     }
 
     Rectangle {
         id: pill
-        visible: win.active || win.resting
+        visible: win.active
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 4
-        width: win.active ? (tala.locked ? 176 : 120) : (hover.hovered ? 64 : 44)
-        height: win.active ? 34 : (hover.hovered ? 14 : 8)
+        width: tala.locked ? 176 : 120
+        height: 34
         radius: height / 2
-        color: win.active || hover.hovered ? "#f0141416" : "#99141416"
+        color: "#f0141416"
         border.color: "#40ffffff"
         border.width: 1
         onVisibleChanged: win.maskLater()
@@ -196,20 +107,6 @@ Window {
         Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
-        HoverHandler { id: hover }
-        TapHandler {
-            enabled: !win.active
-            acceptedButtons: Qt.LeftButton
-            onTapped: tala.toggle()
-        }
-        TapHandler {
-            enabled: !win.active
-            acceptedButtons: Qt.RightButton
-            onTapped: {
-                win.notice = ""
-                win.menu = !win.menu
-            }
-        }
 
         // Listening: bars from the recent loudness, newest on the right.
         Row {
@@ -287,6 +184,5 @@ Window {
     onWidthChanged: maskLater()
     onHeightChanged: maskLater()
     onActiveChanged: maskLater()
-    onRestingChanged: maskLater()
     Component.onCompleted: maskLater()
 }
