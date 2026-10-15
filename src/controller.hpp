@@ -77,6 +77,9 @@ public:
     Q_INVOKABLE QString setting(const QString& key, const QString& fallback = {}) const;
     Q_INVOKABLE void setSetting(const QString& key, const QString& value);
     Q_INVOKABLE void configureShortcuts();
+    // An autostart entry in $XDG_CONFIG_HOME/autostart.
+    Q_INVOKABLE bool autostart() const;
+    Q_INVOKABLE void setAutostart(bool on);
     // What the pipeline makes of `text` with the current settings (Style page).
     Q_INVOKABLE QString preview(const QString& text) const;
 
@@ -108,6 +111,9 @@ private:
     PipelineOptions options() const;
     QStringList hotwords() const;
     QString audioDir() const;
+    int keepDays() const;
+    void expireAudio();
+    QString autostartPath() const;
 
     Store& store_;
     std::unique_ptr<Recorder> recorder_;

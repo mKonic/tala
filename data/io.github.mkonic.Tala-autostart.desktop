@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=tala
-Comment=Dictation, waiting for its key
-Exec=tala --background
-Icon=audio-input-microphone
-NoDisplay=true
-X-GNOME-Autostart-enabled=true

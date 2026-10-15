@@ -4,6 +4,7 @@
 // lets the user change them in its own settings; tala hears press and release.
 
 #include <QDBusArgument>
+#include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QObject>
@@ -47,6 +48,7 @@ private slots:
     void onShortcutsChanged(const QDBusMessage& message);
 
 private:
+    QDBusConnection bus() const;
     QString requestPath(const QString& token) const;
     void readShortcuts(const QDBusArgument& arg);
 

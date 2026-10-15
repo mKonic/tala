@@ -54,15 +54,22 @@ Shortcuts::Shortcuts(QObject* parent) : QObject(parent) {
     qDBusRegisterMetaType<PortalShortcuts>();
 }
 
+// A connection of tala's own: the portal fixes an app id to a connection at
+// its first call, and Qt's own portal use (the theme reading settings) can
+// get to the shared session connection first, with no id.
+QDBusConnection Shortcuts::bus() const {
+    return QDBusConnection::connectToBus(QDBusConnection::SessionBus, QStringLiteral("tala-shortcuts"));
+}
+
 QString Shortcuts::requestPath(const QString& token) const {
-    QString sender = QDBusConnection::sessionBus().baseService().mid(1);
+    QString sender = bus().baseService().mid(1);
     sender.replace('.', '_');
     return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
 }
 
 void Shortcuts::bind(const QList<Action>& actions) {
     actions_ = actions;
-    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusConnection bus = this->bus();
     // Unsandboxed, the portal can't tell who's asking: say so, first.
     QDBusMessage reg = QDBusMessage::createMethodCall(kService, kPath, "org.freedesktop.host.portal.Registry", "Register");
     reg << QString::fromLatin1(kAppId) << QVariantMap{};
@@ -90,7 +97,7 @@ void Shortcuts::onSessionResponse(uint code, const QVariantMap& results) {
         return;
     }
     session_ = results.value("session_handle").toString();
-    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusConnection bus = this->bus();
     bus.connect(kService, kPath, kIface, "Activated", this,
                 SLOT(onActivated(QDBusObjectPath, QString, qulonglong, QVariantMap)));
     bus.connect(kService, kPath, kIface, "Deactivated", this,
@@ -159,7 +166,7 @@ void Shortcuts::configure() {
         return;
     QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kIface, "ConfigureShortcuts");
     m << QVariant::fromValue(QDBusObjectPath(session_)) << QString() << QVariantMap{};
-    QDBusConnection::sessionBus().asyncCall(m);
+    bus().asyncCall(m);
 }
 
 } // namespace tala

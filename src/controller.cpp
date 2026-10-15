@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
 
 namespace tala {
@@ -44,10 +45,7 @@ Controller::Controller(Store& store, QObject* parent)
       engine_(std::make_unique<ServerEngine>()),
       shortcuts_(std::make_unique<Shortcuts>()) {
     QDir().mkpath(audioDir());
-    for (const std::string& path : store_.expireAudio(store_.setting("keep_audio_days", "14").empty()
-                                                          ? 14
-                                                          : std::stoi(store_.setting("keep_audio_days", "14"))))
-        QFile::remove(QString::fromStdString(path));
+    expireAudio();
 
     connect(recorder_.get(), &Recorder::level, this, [this](double v) {
         level_ = v;
@@ -95,7 +93,7 @@ Controller::Controller(Store& store, QObject* parent)
 
     if (const QString m = inserter_->missing(); !m.isEmpty())
         setProblem(tr("Can't paste: %1").arg(m));
-    else if (!recorder_->ok())
+    else if (!recorder_->ok() && qEnvironmentVariableIsEmpty("TALA_FAKE_MIC"))
         setProblem(tr("Can't reach PipeWire for the microphone"));
     // The model takes a moment to load: start now, not at the first dictation.
     engine_->start();
@@ -284,11 +282,13 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
         d.time = nowMs();
         d.app = app_.toStdString();
         d.seconds = double(pcm.size()) / Recorder::kRate;
-        // Kept for a retry (and Flow's 14 days).
-        const QString path = audioDir() + QStringLiteral("/%1.wav").arg(d.time);
-        QFile f(path);
-        if (f.open(QIODevice::WriteOnly) && f.write(wavBytes(pcm)) > 0)
-            d.audio = path.toStdString();
+        // Kept for a retry, as long as the user lets it (Flow: 14 days).
+        if (keepDays() > 0) {
+            const QString path = audioDir() + QStringLiteral("/%1.wav").arg(d.time);
+            QFile f(path);
+            if (f.open(QIODevice::WriteOnly) && f.write(wavBytes(pcm)) > 0)
+                d.audio = path.toStdString();
+        }
     }
     engine_->transcribe(pcm, hotwords(), [this, d, retryOf](const Transcript& t) mutable {
         if (!t.ok) {
@@ -468,6 +468,41 @@ QString Controller::setting(const QString& key, const QString& fallback) const {
 
 void Controller::setSetting(const QString& key, const QString& value) {
     store_.set(key.toStdString(), value.toStdString());
+    if (key == "keep_audio_days")
+        expireAudio();
+    bump();
+}
+
+int Controller::keepDays() const {
+    bool ok = false;
+    const int days = QString::fromStdString(store_.setting("keep_audio_days", "14")).toInt(&ok);
+    return ok ? std::max(days, 0) : 14;
+}
+
+void Controller::expireAudio() {
+    for (const std::string& path : store_.expireAudio(keepDays()))
+        QFile::remove(QString::fromStdString(path));
+}
+
+QString Controller::autostartPath() const {
+    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+           "/autostart/io.github.mkonic.Tala.desktop";
+}
+
+bool Controller::autostart() const {
+    return QFile::exists(autostartPath());
+}
+
+void Controller::setAutostart(bool on) {
+    if (on) {
+        QDir().mkpath(QFileInfo(autostartPath()).path());
+        QFile f(autostartPath());
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            f.write("[Desktop Entry]\nType=Application\nName=tala\nComment=Dictation, waiting for its key\n"
+                    "Exec=tala --background\nIcon=audio-input-microphone\nNoDisplay=true\n");
+    } else {
+        QFile::remove(autostartPath());
+    }
     bump();
 }
 

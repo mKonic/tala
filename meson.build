@@ -11,7 +11,7 @@ project('tala', 'cpp', 'c',
 )
 
 qt6 = import('qt6')
-qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'Widgets', 'Qml', 'Quick', 'DBus', 'Network'])
+qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'Widgets', 'Qml', 'Quick', 'QuickControls2', 'DBus', 'Network'])
 # LayerShellQt ships CMake files only; without CMake, its library directly.
 layershellqt = dependency('LayerShellQt', method: 'cmake', modules: ['LayerShellQt::Interface'], required: false)
 if not layershellqt.found()

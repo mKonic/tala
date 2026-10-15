@@ -2,5 +2,18 @@
   <qresource prefix="/tala">
     <file>Bar.qml</file>
     <file>Hub.qml</file>
+    <file>Theme.qml</file>
+    <file>Card.qml</file>
+    <file>SectionTitle.qml</file>
+    <file>TButton.qml</file>
+    <file>TField.qml</file>
+    <file>TArea.qml</file>
+    <file>TSwitch.qml</file>
+    <file>TCombo.qml</file>
+    <file>HomePage.qml</file>
+    <file>DictionaryPage.qml</file>
+    <file>SnippetsPage.qml</file>
+    <file>StylePage.qml</file>
+    <file>SettingsPage.qml</file>
   </qresource>
 </RCC>

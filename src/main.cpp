@@ -17,6 +17,7 @@
 #include <QMenu>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
@@ -60,12 +61,14 @@ int main(int argc, char** argv) {
     sigaddset(&quitSignals, SIGINT);
     pthread_sigmask(SIG_BLOCK, &quitSignals, nullptr);
 
+    // Before the application exists: Qt's portal theme registers the app id
+    // with the portal while it starts, and only the first registration counts.
+    QGuiApplication::setDesktopFileName("io.github.mkonic.Tala");
     QApplication app(argc, argv);
     QSocketNotifier quitNotifier(signalfd(-1, &quitSignals, SFD_CLOEXEC | SFD_NONBLOCK), QSocketNotifier::Read);
     QObject::connect(&quitNotifier, &QSocketNotifier::activated, &app, &QApplication::quit);
     app.setApplicationName("tala");
     app.setApplicationVersion(TALA_VERSION);
-    app.setDesktopFileName("io.github.mkonic.Tala");
     app.setQuitOnLastWindowClosed(false);
     app.setWindowIcon(QIcon::fromTheme("audio-input-microphone"));
 
@@ -99,6 +102,8 @@ int main(int argc, char** argv) {
         return 1;
     Controller controller(store);
 
+    // tala draws its own controls; Basic is the style that doesn't fight it.
+    QQuickStyle::setStyle("Basic");
     QQmlApplicationEngine engine;
     Ui ui;
     engine.rootContext()->setContextProperty("tala", &controller);
@@ -113,8 +118,10 @@ int main(int argc, char** argv) {
     QQuickWindow* hub = nullptr;
     auto showHub = [&] {
         if (!hub) {
+            const qsizetype before = engine.rootObjects().size();
             engine.load(QUrl("qrc:/tala/Hub.qml"));
-            hub = qobject_cast<QQuickWindow*>(engine.rootObjects().last());
+            if (engine.rootObjects().size() > before)
+                hub = qobject_cast<QQuickWindow*>(engine.rootObjects().last());
         }
         if (hub) {
             hub->show();
