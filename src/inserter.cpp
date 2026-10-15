@@ -165,8 +165,12 @@ const zwlr_foreign_toplevel_handle_v1_listener kToplevelListener = {
     .app_id = [](void* data, zwlr_foreign_toplevel_handle_v1* h, const char* id) {
         static_cast<Inserter*>(data)->toplevels_[h].appId = id;
     },
-    .output_enter = [](void*, zwlr_foreign_toplevel_handle_v1*, wl_output*) {},
-    .output_leave = [](void*, zwlr_foreign_toplevel_handle_v1*, wl_output*) {},
+    .output_enter = [](void* data, zwlr_foreign_toplevel_handle_v1* h, wl_output* o) {
+        static_cast<Inserter*>(data)->toplevels_[h].outputs.push_back(o);
+    },
+    .output_leave = [](void* data, zwlr_foreign_toplevel_handle_v1* h, wl_output* o) {
+        std::erase(static_cast<Inserter*>(data)->toplevels_[h].outputs, o);
+    },
     .state = [](void* data, zwlr_foreign_toplevel_handle_v1* h, wl_array* states) {
         bool active = false;
         for (auto* s = static_cast<const std::uint32_t*>(states->data);
@@ -190,6 +194,15 @@ const zwlr_foreign_toplevel_manager_v1_listener kToplevelManagerListener = {
     .finished = [](void*, zwlr_foreign_toplevel_manager_v1*) {},
 };
 
+const wl_output_listener kOutputListener = {
+    .geometry = [](void*, wl_output*, int32_t, int32_t, int32_t, int32_t, int32_t, const char*, const char*, int32_t) {},
+    .mode = [](void*, wl_output*, uint32_t, int32_t, int32_t, int32_t) {},
+    .done = [](void*, wl_output*) {},
+    .scale = [](void*, wl_output*, int32_t) {},
+    .name = [](void* data, wl_output* o, const char* name) { static_cast<Inserter*>(data)->outputs_[o].name = name; },
+    .description = [](void*, wl_output*, const char*) {},
+};
+
 const wl_registry_listener kRegistryListener = {
     .global = [](void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
         auto* self = static_cast<Inserter*>(data);
@@ -205,9 +218,23 @@ const wl_registry_listener kRegistryListener = {
             self->toplevelManager_ = static_cast<zwlr_foreign_toplevel_manager_v1*>(
                 wl_registry_bind(registry, name, &zwlr_foreign_toplevel_manager_v1_interface, std::min(version, 3u)));
             zwlr_foreign_toplevel_manager_v1_add_listener(self->toplevelManager_, &kToplevelManagerListener, self);
+        } else if (!std::strcmp(interface, wl_output_interface.name) && version >= 4) {
+            auto* o = static_cast<wl_output*>(wl_registry_bind(registry, name, &wl_output_interface, 4));
+            self->outputs_[o] = {name, {}};
+            wl_output_add_listener(o, &kOutputListener, self);
         }
     },
-    .global_remove = [](void*, wl_registry*, uint32_t) {},
+    .global_remove = [](void* data, wl_registry*, uint32_t name) {
+        auto* self = static_cast<Inserter*>(data);
+        for (auto it = self->outputs_.begin(); it != self->outputs_.end(); ++it)
+            if (it->second.global == name) {
+                for (auto& [h, t] : self->toplevels_)
+                    std::erase(t.outputs, it->first);
+                wl_output_release(it->first);
+                self->outputs_.erase(it);
+                break;
+            }
+    },
 };
 
 } // namespace
@@ -253,6 +280,14 @@ QString Inserter::missing() const {
         return tr("the desktop has no clipboard access for apps (ext-data-control-v1)");
     if (!keyboardManager_)
         return tr("the desktop has no virtual keyboard (zwp_virtual_keyboard_v1)");
+    return {};
+}
+
+QString Inserter::focusedScreen() const {
+    for (const auto& [h, t] : toplevels_)
+        if (t.activated && !t.outputs.empty())
+            if (auto it = outputs_.find(t.outputs.front()); it != outputs_.end())
+                return QString::fromStdString(it->second.name);
     return {};
 }
 

@@ -1,14 +1,16 @@
 // The bar at the bottom of the screen (Wispr Flow's Flow Bar): a small pill
 // at rest, a waveform while listening, dots while the model works. A click
 // on the resting pill starts hands-free dictation; a right click has
-// "Hide for 1 hour" and "Open tala".
+// the microphone to use, "Hide for 1 hour" and "Open tala".
 import QtQuick
 import QtQuick.Window
 
 Window {
     id: win
     width: 360
-    height: 104
+    // Taller while the menu is open (its microphones); the surface is
+    // anchored at the bottom, so it grows upward.
+    height: menu ? Math.max(104, menuRow.implicitHeight + 72) : 104
     visible: false  // shown once it is a layer surface (main.cpp)
     color: "transparent"
     flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
@@ -95,33 +97,68 @@ Window {
             font.pixelSize: 13
             elide: Text.ElideRight
         }
-        Row {
+        Column {
             id: menuRow
             visible: win.menu
             anchors.centerIn: parent
-            spacing: 4
+            spacing: 2
+            readonly property string mic: { tala.revision; return tala.setting("mic", "") }
+            readonly property var items: [{ kind: "head", text: qsTr("Microphone") },
+                                          { kind: "mic", name: "", text: qsTr("Auto") }]
+                .concat(tala.devices.map(d => ({ kind: "mic", name: d.name, text: d.description })))
+                .concat([{ kind: "line" },
+                         { kind: "hide", text: qsTr("Hide for 1 hour") },
+                         { kind: "open", text: qsTr("Open tala") }])
             Repeater {
-                model: [qsTr("Hide for 1 hour"), qsTr("Open tala")]
+                model: menuRow.items
                 Rectangle {
-                    required property string modelData
-                    required property int index
-                    width: label.implicitWidth + 24
-                    height: 28
+                    required property var modelData
+                    readonly property bool action: modelData.kind !== "head" && modelData.kind !== "line"
+                    width: 240
+                    height: modelData.kind === "line" ? 9 : modelData.kind === "head" ? 24 : 28
                     radius: 8
-                    color: itemHover.hovered ? "#33ffffff" : "transparent"
-                    HoverHandler { id: itemHover }
+                    color: action && itemHover.hovered ? "#33ffffff" : "transparent"
+                    Rectangle {
+                        visible: modelData.kind === "line"
+                        anchors.centerIn: parent
+                        width: parent.width - 16
+                        height: 1
+                        color: "#33ffffff"
+                    }
+                    Text {
+                        visible: modelData.kind === "mic" && modelData.name === menuRow.mic
+                        x: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "✓"
+                        color: "white"
+                        font.pixelSize: 13
+                    }
+                    HoverHandler { id: itemHover; enabled: parent.action }
                     TapHandler {
+                        enabled: parent.action
                         onTapped: {
                             win.menu = false
-                            if (index === 0) {
+                            const k = modelData.kind
+                            if (k === "mic") {
+                                tala.setSetting("mic", modelData.name)
+                            } else if (k === "hide") {
                                 win.hiddenUntil = Date.now() + hideTimer.interval
                                 hideTimer.restart()
-                            } else {
+                            } else if (k === "open") {
                                 tala.openHub()
                             }
                         }
                     }
-                    Text { id: label; anchors.centerIn: parent; text: modelData; color: "white"; font.pixelSize: 13 }
+                    Text {
+                        id: label
+                        x: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(implicitWidth, parent.width - 38)
+                        elide: Text.ElideRight
+                        text: modelData.text ?? ""
+                        color: modelData.kind === "head" ? "#99ffffff" : "white"
+                        font.pixelSize: modelData.kind === "head" ? 11 : 13
+                    }
                 }
             }
         }

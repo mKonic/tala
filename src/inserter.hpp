@@ -27,6 +27,7 @@
 struct wl_display;
 struct wl_registry;
 struct wl_seat;
+struct wl_output;
 struct ext_data_control_manager_v1;
 struct ext_data_control_device_v1;
 struct ext_data_control_offer_v1;
@@ -49,6 +50,8 @@ public:
     QString missing() const;
     // The focused window's app id, when the desktop says.
     QString focusedApp() const;
+    // The connector name (DP-1, …) of the screen the focused window is on.
+    QString focusedScreen() const;
 
     // Pastes `text` into the focused field. `done(false)` when it couldn't
     // (the text is then left on the clipboard).
@@ -67,6 +70,7 @@ public:
     struct Toplevel {
         std::string appId;
         bool activated = false;
+        std::vector<wl_output*> outputs;
     };
     void onOffer(ext_data_control_offer_v1* offer);
     void onOfferMime(ext_data_control_offer_v1* offer, const char* mime);
@@ -79,6 +83,11 @@ public:
     zwp_virtual_keyboard_manager_v1* keyboardManager_ = nullptr;
     zwlr_foreign_toplevel_manager_v1* toplevelManager_ = nullptr;
     std::map<zwlr_foreign_toplevel_handle_v1*, Toplevel> toplevels_;
+    struct Output {
+        std::uint32_t global;
+        std::string name;
+    };
+    std::map<wl_output*, Output> outputs_;
 
 private:
     struct Source;

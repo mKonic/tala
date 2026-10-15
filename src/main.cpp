@@ -19,6 +19,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
 
@@ -115,6 +116,21 @@ int main(int argc, char** argv) {
         return 1;
     makeBar(bar);
     bar->show();
+    // A layer surface stays on the output it was made on: made again on the
+    // screen being dictated on, so the bar and its notices are in sight.
+    QObject::connect(&controller, &tala::Controller::screenWanted, bar, [bar](const QString& name) {
+        auto* layer = LayerShellQt::Window::get(bar);
+        QScreen* now = layer->screen() ? layer->screen() : bar->screen();
+        for (QScreen* s : QGuiApplication::screens())
+            if (s->name() == name && s != now) {
+                layer->setWantsToBeOnActiveScreen(false);
+                layer->setScreen(s);
+                bar->setScreen(s);
+                bar->hide();
+                bar->show();
+                return;
+            }
+    });
 
     QQuickWindow* hub = nullptr;
     auto showHub = [&] {

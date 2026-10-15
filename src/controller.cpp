@@ -229,6 +229,8 @@ void Controller::begin(bool locked) {
         return;
     }
     app_ = inserter_->focusedApp();
+    if (const QString screen = inserter_->focusedScreen(); !screen.isEmpty())
+        emit screenWanted(screen);
     locked_ = locked;
     peak_ = 0;
     held_.start();

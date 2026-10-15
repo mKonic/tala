@@ -95,6 +95,8 @@ signals:
     // Something to tell the user near the bar ("Is your microphone muted?").
     void notice(const QString& text);
     void showHub();
+    // The bar belongs on this screen (connector name): the one being typed on.
+    void screenWanted(const QString& name);
 
 private:
     enum class State { Idle, Recording, Processing };
