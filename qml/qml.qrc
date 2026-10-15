@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/tala">
+    <file>Bar.qml</file>
+    <file>Hub.qml</file>
+  </qresource>
+</RCC>
