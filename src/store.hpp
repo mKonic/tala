@@ -53,7 +53,10 @@ public:
     void update(const Dictation& d);
     std::optional<Dictation> dictation(std::int64_t id) const;
     // Newest first; `query` filters by text (empty: all).
+    // Dictations, newest first (not transcribed files).
     std::vector<Dictation> history(int limit, const std::string& query = {}) const;
+    // Transcribed files (status "file", app "file:<name>"), newest first.
+    std::vector<Dictation> files(int limit) const;
     void remove(std::int64_t id);
     void clearHistory();
     // Recordings older than `days` lose their audio (the text stays).

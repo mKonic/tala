@@ -141,9 +141,10 @@ std::optional<Dictation> Store::dictation(std::int64_t id) const {
 std::vector<Dictation> Store::history(int limit, const std::string& query) const {
     std::vector<Dictation> out;
     Stmt s(db_, query.empty()
-                    ? "SELECT id, time, app, raw, text, seconds, status, audio FROM history ORDER BY time DESC LIMIT ?"
+                    ? "SELECT id, time, app, raw, text, seconds, status, audio FROM history WHERE status != 'file' "
+                      "ORDER BY time DESC LIMIT ?"
                     : "SELECT id, time, app, raw, text, seconds, status, audio FROM history "
-                      "WHERE text LIKE '%' || ? || '%' ESCAPE '\\' ORDER BY time DESC LIMIT ?");
+                      "WHERE status != 'file' AND text LIKE '%' || ? || '%' ESCAPE '\\' ORDER BY time DESC LIMIT ?");
     if (!s)
         return out;
     if (query.empty()) {
@@ -233,6 +234,18 @@ void Store::updateSnippet(const Snippet& sn) {
 
 void Store::removeSnippet(std::int64_t id) {
     Stmt(db_, "DELETE FROM snippets WHERE id = ?").bind(1, id).run();
+}
+
+std::vector<Dictation> Store::files(int limit) const {
+    std::vector<Dictation> out;
+    Stmt s(db_, "SELECT id, time, app, raw, text, seconds, status, audio FROM history WHERE status = 'file' "
+                "ORDER BY time DESC LIMIT ?");
+    if (!s)
+        return out;
+    s.bind(1, std::int64_t(limit));
+    while (s.step())
+        out.push_back(readDictation(s));
+    return out;
 }
 
 Store::Stats Store::stats() const {

@@ -130,6 +130,7 @@ Item {
                         Layout.topMargin: 12
                         Layout.preferredWidth: 58
                         text: new Date(row.modelData.time).toLocaleTimeString(Qt.locale(), "HH:mm")
+                              + (row.modelData.status === "note" ? "\n" + qsTr("Note") : "")
                         color: theme.tertiary
                         font.pixelSize: theme.small
                     }

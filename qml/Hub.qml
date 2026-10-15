@@ -38,6 +38,7 @@ ApplicationWindow {
         { id: "dictionary", title: qsTr("Dictionary"), icon: "dictionary", glyph: "\u2261" },
         { id: "snippets", title: qsTr("Snippets"), icon: "text_snippet", glyph: "\u2702" },
         { id: "style", title: qsTr("Style"), icon: "edit_note", glyph: "\u270e" },
+        { id: "files", title: qsTr("Files"), icon: "audio_file", glyph: "\u266b" },
         { id: "settings", title: qsTr("Settings"), icon: "settings", glyph: "\u2699" },
     ]
 
@@ -119,6 +120,7 @@ ApplicationWindow {
                   : hub.page === "dictionary" ? "DictionaryPage.qml"
                   : hub.page === "snippets" ? "SnippetsPage.qml"
                   : hub.page === "style" ? "StylePage.qml"
+                  : hub.page === "files" ? "FilesPage.qml"
                   : "SettingsPage.qml"
             onLoaded: item.theme = theme
         }

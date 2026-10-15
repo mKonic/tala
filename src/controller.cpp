@@ -6,6 +6,7 @@
 #include "version.hpp"
 
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -44,7 +45,11 @@ Controller::Controller(Store& store, QObject* parent)
       inserter_(std::make_unique<Inserter>()),
       engine_(std::make_unique<Engine>()),
       shortcuts_(std::make_unique<Shortcuts>()),
-      context_(std::make_unique<Context>()) {
+      context_(std::make_unique<Context>()),
+      decoder_(std::make_unique<FileDecoder>()),
+      screenshot_(std::make_unique<Screenshot>()) {
+    noteWindow_.setSingleShot(true);
+    noteWindow_.setInterval(kTapMs);
     context_->setEnabled(store_.flag("context", false));
     QDir().mkpath(audioDir());
     expireAudio();
@@ -176,7 +181,24 @@ void Controller::onPressed(const QString& id) {
             // The second tap of a double tap: hands-free from here.
             tapWindow_.stop();
             locked_ = true;
+            noteWindow_.start();
             emit stateChanged();
+        } else if (state_ == State::Recording && locked_ && noteWindow_.isActive() && !note_) {
+            // A third: a quick note (Detta's), kept, not pasted, with what's
+            // on screen now.
+            noteWindow_.stop();
+            note_ = true;
+            // The bar hides for the picture: a frame to clear it, then the shot.
+            capturing_ = true;
+            emit capturingChanged();
+            QTimer::singleShot(80, this, [this] {
+                screenshot_->take([this](const QString& path) {
+                    shot_ = path;
+                    capturing_ = false;
+                    emit capturingChanged();
+                    emit notice(tr("Quick note: speak, then tap again to save it."));
+                });
+            });
         } else if (state_ == State::Recording && locked_) {
             finish();
         } else if (state_ == State::Idle) {
@@ -240,6 +262,9 @@ void Controller::begin(bool locked) {
         return;
     }
     app_ = inserter_->focusedApp();
+    title_ = inserter_->focusedTitle();
+    note_ = false;
+    shot_.clear();
     category_ = pipeline::category(app_, inserter_->focusedTitle());
     if (const QString screen = inserter_->focusedScreen(); !screen.isEmpty())
         emit screenWanted(screen);
@@ -319,7 +344,9 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
                 d.audio = path.toStdString();
         }
     }
-    engine_->transcribe(pcm, hotwords(), [this, d, retryOf](const Transcript& t) mutable {
+    const bool note = note_;
+    note_ = false;
+    engine_->transcribe(pcm, hotwords(), [this, d, retryOf, note, pcm](const Transcript& t) mutable {
         if (!t.ok) {
             d.status = "failed";
             if (retryOf)
@@ -334,6 +361,19 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
             return;
         }
         d.raw = t.text.toStdString();
+        if (note && !retryOf) {
+            // Notes are for reading back: no spoken commands, the Other style.
+            PipelineOptions o = options(Category::Other);
+            o.commands = false;
+            d.text = pipeline::run(t.text, o).toStdString();
+            d.status = "note";
+            d.id = store_.add(d);
+            bump();
+            setState(State::Idle);
+            const QString where = saveNote(d, pcm);
+            emit notice(where.isEmpty() ? tr("Couldn't save the note; it's in History.") : tr("Note saved"));
+            return;
+        }
         d.text = pipeline::run(t.text, options(category_)).toStdString();
         d.status = d.text.empty() ? "empty" : "ok";
         deliver(std::move(d), true);
@@ -417,6 +457,126 @@ QVariantList Controller::history(const QString& query) const {
     for (const Dictation& d : store_.history(500, query.toStdString()))
         out.append(toMap(d));
     return out;
+}
+
+void Controller::transcribeFile(const QUrl& file) {
+    const QString path = file.toLocalFile();
+    if (path.isEmpty() || !fileStatus_.isEmpty())
+        return;
+    const QString name = QFileInfo(path).fileName();
+    const int run = ++fileRun_;
+    const auto status = [this](const QString& s, double p) {
+        fileStatus_ = s;
+        fileProgress_ = p;
+        emit fileChanged();
+    };
+    status(tr("Reading %1").arg(name), 0);
+    decoder_->disconnect(this);
+    connect(decoder_.get(), &FileDecoder::progress, this, [status, name](double p) {
+        status(tr("Reading %1").arg(name), p * 0.5);
+    });
+    connect(decoder_.get(), &FileDecoder::failed, this, [this, status, name](const QString& why) {
+        status({}, 0);
+        emit notice(tr("Couldn't read %1: %2").arg(name, why));
+    });
+    connect(decoder_.get(), &FileDecoder::finished, this, [this, status, name, run](const std::vector<float>& pcm) {
+        if (pcm.size() < std::size_t(Recorder::kRate) / 4) {
+            status({}, 0);
+            emit notice(tr("%1 has no sound to transcribe.").arg(name));
+            return;
+        }
+        const double seconds = double(pcm.size()) / Recorder::kRate;
+        status(tr("Transcribing %1 (%2 min)").arg(name).arg(seconds / 60, 0, 'f', 1), 0.5);
+        engine_->transcribe(pcm, hotwords(), [this, status, name, run, seconds](const Transcript& t) {
+            if (run != fileRun_)
+                return;  // cancelled meanwhile
+            status({}, 0);
+            if (!t.ok) {
+                emit notice(tr("Couldn't transcribe %1: %2").arg(name, t.error));
+                return;
+            }
+            // Words said in a recording aren't commands to tala.
+            PipelineOptions o = options(Category::Other);
+            o.commands = false;
+            Dictation d;
+            d.time = QDateTime::currentMSecsSinceEpoch();
+            d.app = ("file:" + name).toStdString();
+            d.raw = t.text.toStdString();
+            d.text = pipeline::run(t.text, o).toStdString();
+            d.seconds = seconds;
+            d.status = "file";
+            store_.add(d);
+            bump();
+        });
+    });
+    decoder_->decode(path);
+}
+
+QString Controller::notesDir() const {
+    const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    return (docs.isEmpty() ? QDir::homePath() : docs) + QStringLiteral("/tala notes");
+}
+
+void Controller::openNotes() const {
+    QDir().mkpath(notesDir());
+    QDesktopServices::openUrl(QUrl::fromLocalFile(notesDir()));
+}
+
+// <notes>/<date time>/note.md, recording.wav and screen.png; the folder, or
+// "" when it couldn't be written.
+QString Controller::saveNote(const Dictation& d, const std::vector<float>& pcm) const {
+    const QDateTime when = QDateTime::fromMSecsSinceEpoch(d.time);
+    const QString dir = notesDir() + '/' + when.toString("yyyy-MM-dd HH.mm.ss");
+    if (!QDir().mkpath(dir))
+        return {};
+    QFile wav(dir + "/recording.wav");
+    const bool haveAudio = wav.open(QIODevice::WriteOnly) && wav.write(wavBytes(pcm)) > 0;
+    wav.close();
+    bool haveShot = false;
+    if (!shot_.isEmpty() && QFileInfo::exists(shot_)) {
+        haveShot = QFile::copy(shot_, dir + "/screen.png");
+        QFile::remove(shot_);  // the portal's copy, made for this
+    }
+    QString md = "---\n";
+    md += "time: " + when.toString(Qt::ISODate) + "\n";
+    if (!d.app.empty())
+        md += "app: " + QString::fromStdString(d.app) + "\n";
+    if (!title_.isEmpty())
+        md += "window: \"" + QString(title_).replace('"', "\\\"") + "\"\n";
+    md += QStringLiteral("seconds: %1\n").arg(d.seconds, 0, 'f', 1);
+    if (haveAudio)
+        md += "recording: recording.wav\n";
+    if (haveShot)
+        md += "screenshot: screen.png\n";
+    md += "---\n\n" + QString::fromStdString(d.text) + "\n";
+    if (haveShot)
+        md += "\n![What was on screen](screen.png)\n";
+    QFile f(dir + "/note.md");
+    if (!f.open(QIODevice::WriteOnly) || f.write(md.toUtf8()) < 0)
+        return {};
+    return dir;
+}
+
+void Controller::cancelFile() {
+    ++fileRun_;
+    decoder_->cancel();
+    fileStatus_.clear();
+    fileProgress_ = 0;
+    emit fileChanged();
+}
+
+QVariantList Controller::files() const {
+    QVariantList out;
+    for (const Dictation& d : store_.files(200))
+        out.append(toMap(d));
+    return out;
+}
+
+QString Controller::saveText(const QUrl& file, const QString& text) const {
+    QFile f(file.toLocalFile());
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return f.errorString();
+    return f.write(text.toUtf8()) < 0 ? f.errorString() : QString();
 }
 
 QVariantMap Controller::stats() const {

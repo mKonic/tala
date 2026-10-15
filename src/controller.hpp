@@ -11,12 +11,15 @@
 
 #include "context.hpp"
 #include "engine.hpp"
+#include "filedecoder.hpp"
+#include "screenshot.hpp"
 #include "pipeline.hpp"
 #include "store.hpp"
 
 #include <QElapsedTimer>
 #include <QObject>
 #include <QTimer>
+#include <QUrl>
 #include <QVariantList>
 
 #include <memory>
@@ -39,6 +42,11 @@ class Controller : public QObject {
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
     Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
     Q_PROPERTY(QString version READ version CONSTANT)
+    // A file being transcribed: what's happening ("" when nothing), 0..1.
+    Q_PROPERTY(QString fileStatus READ fileStatus NOTIFY fileChanged)
+    // A quick note's screenshot is being taken: the bar stays out of it.
+    Q_PROPERTY(bool capturing READ capturing NOTIFY capturingChanged)
+    Q_PROPERTY(double fileProgress READ fileProgress NOTIFY fileChanged)
 
 public:
     Controller(Store& store, QObject* parent = nullptr);
@@ -67,6 +75,20 @@ public:
     Q_INVOKABLE void clearHistory();
     Q_INVOKABLE QVariantList history(const QString& query = {}) const;
     Q_INVOKABLE QVariantMap stats() const;
+    // Detta's file transcription: an audio or video file to text, kept with
+    // the history (status "file").
+    Q_INVOKABLE void transcribeFile(const QUrl& file);
+    Q_INVOKABLE void cancelFile();
+    Q_INVOKABLE QVariantList files() const;
+    // Where quick notes go (Detta's): one folder each, Markdown plus the
+    // recording and a screenshot, for people and local agents to read.
+    Q_INVOKABLE QString notesDir() const;
+    Q_INVOKABLE void openNotes() const;
+    // Writes `text` to a file the user picked; "" or why not.
+    Q_INVOKABLE QString saveText(const QUrl& file, const QString& text) const;
+    QString fileStatus() const { return fileStatus_; }
+    double fileProgress() const { return fileProgress_; }
+    bool capturing() const { return capturing_; }
 
     Q_INVOKABLE QVariantList words() const;
     Q_INVOKABLE QString saveWord(qint64 id, const QString& word, const QString& misspelling);
@@ -87,6 +109,8 @@ public:
     Q_INVOKABLE QString preview(const QString& text, const QString& category = QStringLiteral("other")) const;
 
 signals:
+    void fileChanged();
+    void capturingChanged();
     void stateChanged();
     void levelChanged();
     void engineChanged();
@@ -114,6 +138,7 @@ private:
     void setProblem(const QString& p);
     void bump();
     PipelineOptions options(Category c = Category::Other) const;
+    QString saveNote(const Dictation& d, const std::vector<float>& pcm) const;
     QStringList hotwords() const;
     QString audioDir() const;
     int keepDays() const;
@@ -126,6 +151,10 @@ private:
     std::unique_ptr<Engine> engine_;
     std::unique_ptr<Shortcuts> shortcuts_;
     std::unique_ptr<Context> context_;
+    std::unique_ptr<FileDecoder> decoder_;
+    QString fileStatus_;
+    double fileProgress_ = 0;
+    int fileRun_ = 0;  // a cancelled file's late answer is dropped
 
     State state_ = State::Idle;
     bool locked_ = false;
@@ -138,6 +167,12 @@ private:
     Category category_ = Category::Other;
     QElapsedTimer held_;
     QTimer tapWindow_;  // after a quick tap: waiting for the second one
+    QTimer noteWindow_;  // after the second: a third makes it a quick note
+    bool note_ = false;  // this dictation is a quick note, not pasted
+    QString shot_;       // its screenshot
+    bool capturing_ = false;
+    QString title_;      // the focused window's title when it began
+    std::unique_ptr<Screenshot> screenshot_;
     QTimer limit_;      // 20 minutes, Flow's cap
     bool pttDown_ = false;
 

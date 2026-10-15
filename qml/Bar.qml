@@ -7,6 +7,8 @@ import QtQuick.Window
 
 Window {
     id: win
+    // Out of a quick note's screenshot.
+    Binding { target: win.contentItem; property: "opacity"; value: tala.capturing ? 0 : 1 }
     width: 360
     // Taller while the menu is open (its microphones); the surface is
     // anchored at the bottom, so it grows upward.

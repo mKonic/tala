@@ -168,6 +168,12 @@ Flickable {
                 }
                 Line {}
                 Row2 {
+                    title: qsTr("Quick notes")
+                    detail: qsTr("Tap the dictation key three times to take a note instead of typing: what you say, the recording and a screenshot, kept in %1.").arg(tala.notesDir())
+                    TButton { theme: page.theme; text: qsTr("Open folder"); onClicked: tala.openNotes() }
+                }
+                Line {}
+                Row2 {
                     title: qsTr("History")
                     detail: qsTr("Every dictation and its recording on this computer.")
                     TButton { theme: page.theme; destructive: true; text: qsTr("Clear history…"); onClicked: confirmClear.open() }
