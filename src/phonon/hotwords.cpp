@@ -1,5 +1,8 @@
 #include "hotwords.hpp"
 
+#include <QList>
+#include <QString>
+
 #include <algorithm>
 #include <deque>
 #include <map>
@@ -41,20 +44,20 @@ std::string join(const std::vector<std::string>& w, const std::string& sep) {
     return out;
 }
 
-// ASCII case changes, as Python's lower()/upper() do for the names people add
-// to a dictionary; other letters pass through.
-std::string lower(std::string s) {
-    for (char& c : s)
-        if (c >= 'A' && c <= 'Z')
-            c = char(c - 'A' + 'a');
-    return s;
+// Unicode case changes, as Python's str.lower() and str.upper() make them.
+std::string lower(const std::string& s) {
+    return QString::fromStdString(s).toLower().toStdString();
 }
 
+// Each word's first letter upper-cased, the rest as written.
 std::string capitalise(const std::string& phrase) {
     std::vector<std::string> words = split(phrase);
-    for (std::string& w : words)
-        if (!w.empty() && w[0] >= 'a' && w[0] <= 'z')
-            w[0] = char(w[0] - 'a' + 'A');
+    for (std::string& w : words) {
+        const QList<uint> cps = QString::fromStdString(w).toUcs4();
+        if (!cps.isEmpty())
+            w = (QString::fromUcs4(cps.constData(), 1).toUpper() + QString::fromUcs4(cps.constData() + 1, cps.size() - 1))
+                    .toStdString();
+    }
     return join(words, " ");
 }
 
