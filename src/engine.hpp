@@ -1,12 +1,19 @@
 #pragma once
-// Speech to text. One interface, so the model's runtime can change under
-// the app: today the Phonon-2 server (`fermion serve` on a private Unix
-// socket, installed into tala's own folder on first use).
+// Speech to text: Phonon-2 in tala-engine, a process of its own.
+//
+// The model loads in about 0.15 s, so it is started when a dictation starts
+// (the recording outlasts the load) and stopped after a few idle minutes:
+// between dictations it holds no memory at all. On first use tala-engine
+// downloads the model and Fermion's kernels into tala's folder.
+
+#include "wav.hpp"
 
 #include <QObject>
 #include <QProcess>
 #include <QStringList>
+#include <QTimer>
 
+#include <deque>
 #include <functional>
 #include <vector>
 
@@ -24,62 +31,50 @@ class Engine : public QObject {
 
 public:
     using Done = std::function<void(const Transcript&)>;
-
-    enum class State { Missing, Installing, Starting, Ready, Failed };
+    enum class State { Missing, Installing, Stopped, Starting, Ready, Failed };
     Q_ENUM(State)
 
-    explicit Engine(QObject* parent = nullptr) : QObject(parent) {}
+    explicit Engine(QObject* parent = nullptr);
+    ~Engine() override;
 
-    // Brings the engine up (installing it if it isn't there). Idempotent.
-    virtual void start() = 0;
+    // Brings the engine up, installing it first if needed. Idempotent.
+    void start();
     // 16 kHz mono samples in [-1, 1]. `done` runs on the GUI thread.
-    virtual void transcribe(const std::vector<float>& pcm, const QStringList& hotwords, Done done) = 0;
-    virtual State state() const = 0;
+    void transcribe(const std::vector<float>& pcm, const QStringList& hotwords, Done done);
+    // How long an idle engine stays loaded (0: until tala quits).
+    void setIdleMinutes(int minutes);
+
+    State state() const { return state_; }
     // A line for the Hub: what it's doing or why it failed.
-    virtual QString status() const = 0;
+    QString status() const { return status_; }
 
 signals:
     void stateChanged();
-};
-
-// `fermion serve phonon-2 --unix-socket` as a child process.
-class ServerEngine : public Engine {
-    Q_OBJECT
-
-public:
-    explicit ServerEngine(QObject* parent = nullptr);
-    ~ServerEngine() override;
-
-    void start() override;
-    void transcribe(const std::vector<float>& pcm, const QStringList& hotwords, Done done) override;
-    State state() const override { return state_; }
-    QString status() const override { return status_; }
 
 private:
-    void setState(State s, const QString& status);
-    void install();
-    void launch();
-    void waitForSocket(int tries);
-    QString home() const;
-    QString fermion() const;
-    QString socketPath() const;
-
-    State state_ = State::Missing;
-    QString status_;
-    QProcess* server_ = nullptr;
-    QProcess* installer_ = nullptr;
-    // Asked for before the server was up.
-    struct Pending {
+    struct Request {
         std::vector<float> pcm;
         QStringList hotwords;
         Done done;
     };
-    std::vector<Pending> pending_;
-};
 
-// WAV (RIFF, 16-bit PCM, mono) for the given samples.
-QByteArray wavBytes(const std::vector<float>& pcm, int rate = 16000);
-// The reverse, for a saved recording: false on anything but tala's own shape.
-bool readWav(const QString& path, std::vector<float>& pcm);
+    void setState(State s, const QString& status);
+    void install();
+    void launch();
+    void send(const Request& r);
+    void onOutput();
+    void fail(const QString& why);
+    QString dir() const;
+    QString program() const;
+
+    State state_ = State::Stopped;
+    QString status_;
+    QProcess* process_ = nullptr;
+    QProcess* installer_ = nullptr;
+    QByteArray buffer_;
+    std::deque<Request> waiting_;  // asked for before the engine was up
+    std::deque<Done> inFlight_;    // sent, answers come back in order
+    QTimer idle_;
+};
 
 } // namespace tala

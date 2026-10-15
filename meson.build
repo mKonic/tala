@@ -32,7 +32,7 @@ version_h = custom_target('version.hpp',
 
 # The pieces with no window: tested on their own.
 core = static_library('tala-core',
-  'src/pipeline.cpp', 'src/store.cpp',
+  'src/pipeline.cpp', 'src/store.cpp', 'src/wav.cpp',
   dependencies: [qt, sqlite],
 )
 core_dep = declare_dependency(link_with: core, dependencies: [qt, sqlite], include_directories: include_directories('src'))
@@ -45,6 +45,16 @@ executable('tala',
   'src/main.cpp', 'src/controller.cpp', 'src/engine.cpp', 'src/recorder.cpp', 'src/shortcuts.cpp', 'src/inserter.cpp',
   moc, resources, version_h, protocol_sources,
   dependencies: [core_dep, layershellqt, wayland_client, xkbcommon, pipewire],
+  install: true,
+)
+
+# The speech model in a process of its own: Qt Core only.
+qtcore = dependency('qt6', version: '>=6.8', modules: ['Core'])
+executable('tala-engine',
+  'src/engine_main.cpp', 'src/wav.cpp', 'src/phonon/phonon.cpp', 'src/phonon/mel.cpp', 'src/phonon/hotwords.cpp',
+  'src/phonon/install.cpp',
+  dependencies: [qtcore, meson.get_compiler('cpp').find_library('dl'), dependency('libcurl'), dependency('libarchive')],
+  cpp_args: ['-O3'],
   install: true,
 )
 

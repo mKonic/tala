@@ -42,7 +42,7 @@ Controller::Controller(Store& store, QObject* parent)
       store_(store),
       recorder_(std::make_unique<Recorder>()),
       inserter_(std::make_unique<Inserter>()),
-      engine_(std::make_unique<ServerEngine>()),
+      engine_(std::make_unique<Engine>()),
       shortcuts_(std::make_unique<Shortcuts>()) {
     QDir().mkpath(audioDir());
     expireAudio();
@@ -95,8 +95,11 @@ Controller::Controller(Store& store, QObject* parent)
         setProblem(tr("Can't paste: %1").arg(m));
     else if (!recorder_->ok() && qEnvironmentVariableIsEmpty("TALA_FAKE_MIC"))
         setProblem(tr("Can't reach PipeWire for the microphone"));
-    // The model takes a moment to load: start now, not at the first dictation.
-    engine_->start();
+    engine_->setIdleMinutes(QString::fromStdString(store_.setting("engine_idle_minutes", "5")).toInt());
+    // Nothing to download: the engine starts with the first dictation.
+    // Otherwise the download starts now, not when the user first speaks.
+    if (engine_->state() == Engine::State::Missing)
+        engine_->start();
 }
 
 Controller::~Controller() {
@@ -122,7 +125,8 @@ QString Controller::engineStatus() const {
 }
 
 bool Controller::engineReady() const {
-    return engine_->state() == Engine::State::Ready;
+    // Stopped is ready too: it loads in a fraction of a second.
+    return engine_->state() == Engine::State::Ready || engine_->state() == Engine::State::Stopped;
 }
 
 QVariantMap Controller::triggers() const {
@@ -470,6 +474,8 @@ void Controller::setSetting(const QString& key, const QString& value) {
     store_.set(key.toStdString(), value.toStdString());
     if (key == "keep_audio_days")
         expireAudio();
+    if (key == "engine_idle_minutes")
+        engine_->setIdleMinutes(value.toInt());
     bump();
 }
 
