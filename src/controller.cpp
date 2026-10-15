@@ -47,7 +47,11 @@ Controller::Controller(Store& store, QObject* parent)
       shortcuts_(std::make_unique<Shortcuts>()),
       context_(std::make_unique<Context>()),
       decoder_(std::make_unique<FileDecoder>()),
-      screenshot_(std::make_unique<Screenshot>()) {
+      screenshot_(std::make_unique<Screenshot>()),
+      cleanup_(std::make_unique<Cleanup>()) {
+    connect(cleanup_.get(), &Cleanup::stateChanged, this, &Controller::cleanupChanged);
+    cleanup_->setIdleMinutes(QString::fromStdString(store_.setting("engine_idle_minutes", "5")).toInt());
+    applyCleanupLevel();
     noteWindow_.setSingleShot(true);
     noteWindow_.setInterval(kTapMs);
     context_->setEnabled(store_.flag("context", false));
@@ -281,6 +285,7 @@ void Controller::begin(bool locked) {
         });
     setState(State::Recording);
     engine_->start();
+    cleanup_->prepare();
 }
 
 void Controller::toggle() {
@@ -374,9 +379,20 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
             emit notice(where.isEmpty() ? tr("Couldn't save the note; it's in History.") : tr("Note saved"));
             return;
         }
-        d.text = pipeline::run(t.text, options(category_)).toStdString();
-        d.status = d.text.empty() ? "empty" : "ok";
-        deliver(std::move(d), true);
+        // The rules, then the model (Auto Cleanup), then what the model
+        // mustn't undo: the dictionary's spellings, snippets, the style.
+        const PipelineOptions o = options(category_);
+        PipelineOptions rules = o;
+        rules.style = Style::Formal;
+        rules.snippets.clear();
+        const QString base = pipeline::run(t.text, rules);
+        cleanup_->clean(base, hotwords(), [this, d, o](const QString& cleaned, bool) mutable {
+            QString text = pipeline::corrections(cleaned, o.corrections);
+            text = pipeline::style(pipeline::snippets(text, o.snippets), o.style);
+            d.text = text.toStdString();
+            d.status = d.text.empty() ? "empty" : "ok";
+            deliver(std::move(d), true);
+        });
     });
 }
 
@@ -510,6 +526,11 @@ void Controller::transcribeFile(const QUrl& file) {
         });
     });
     decoder_->decode(path);
+}
+
+void Controller::applyCleanupLevel() {
+    const std::string l = store_.setting("cleanup", "none");
+    cleanup_->setLevel(l == "light" ? Cleanup::Level::Light : l == "medium" ? Cleanup::Level::Medium : Cleanup::Level::None);
 }
 
 QString Controller::notesDir() const {
@@ -667,6 +688,10 @@ void Controller::setSetting(const QString& key, const QString& value) {
         engine_->setIdleMinutes(value.toInt());
     if (key == "context")
         context_->setEnabled(value == "1");
+    if (key == "cleanup")
+        applyCleanupLevel();
+    if (key == "engine_idle_minutes")
+        cleanup_->setIdleMinutes(value.toInt());
     bump();
 }
 

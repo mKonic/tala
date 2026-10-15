@@ -31,11 +31,19 @@ case "${1:-both}" in
     code) echo "$code" ;;
     name) echo "$name" ;;
     both) echo "$code $name" ;;
+    # pacman's order: 1.2.r3.gabc1234 after a tag, r<commits>.g<hash> before one.
+    pkgver)
+        if desc=$(git -C "$HERE" describe --tags --long --match 'v[0-9]*' 2>/dev/null); then
+            echo "$desc" | sed 's/^v//; s/-\([0-9]*\)-g/.r\1.g/'
+        else
+            printf 'r%s.g%s\n' "$(git -C "$HERE" rev-list --count HEAD)" "$(git -C "$HERE" rev-parse --short HEAD)"
+        fi
+        ;;
     header)
         out="${2:?header needs an output path}"
         tmp="$out.tmp"
         printf '#pragma once\n#define TALA_VERSION "%s"\n#define TALA_BUILD %s\n' "$name" "$code" > "$tmp"
         if cmp -s "$tmp" "$out"; then rm -f "$tmp"; else mv "$tmp" "$out"; fi
         ;;
-    *) echo "usage: $0 [code|name|both|header OUT]" >&2; exit 2 ;;
+    *) echo "usage: $0 [code|name|both|pkgver|header OUT]" >&2; exit 2 ;;
 esac

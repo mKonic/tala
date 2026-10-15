@@ -1,0 +1,50 @@
+# Maintainer: mkonic <mkonic676@gmail.com>
+#
+# Built from the checkout this sits in:
+#
+#   cd packaging && makepkg -si
+#
+# What the package doesn't hold: the speech model and Fermion's speech kernels.
+# tala-engine downloads them on first use into ~/.local/share/tala/phonon
+# (171 MB, each file pinned by SHA-256), as the app says while it does; Auto
+# Cleanup's model (Qwen3-4B, 2.5 GB) likewise into ~/.local/share/tala/llm when
+# it's first turned on.
+pkgname=tala
+# Replaced by pkgver() below on every makepkg run; never edited by hand.
+pkgver=0
+pkgrel=1
+pkgdesc='Hold a key, speak, and the text is typed where your cursor is: dictation on Phonon-2, on this computer'
+arch=('x86_64' 'aarch64')
+url='https://github.com/mKonic/tala'
+license=('GPL-3.0-or-later')
+
+depends=('qt6-base' 'qt6-declarative' 'qt6-multimedia' 'qt6-multimedia-ffmpeg' 'layer-shell-qt' 'pipewire'
+         'sqlite' 'wayland' 'libxkbcommon' 'curl' 'libarchive' 'gcc-libs' 'xdg-desktop-portal')
+makedepends=('meson' 'ninja' 'git' 'wayland-protocols')
+checkdepends=('gtest')
+optdepends=('llama-cpp: Auto Cleanup and Command Mode (with ggml-cuda or ggml-vulkan for the GPU)'
+            'at-spi2-core: context awareness (the words before the cursor)'
+            'atrium: Ctrl+Super held to dictate, and Escape to cancel while dictating')
+
+source=()
+sha256sums=()
+
+_srcdir="$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)"
+
+# The same git-derived version the app reports, in pacman's order.
+pkgver() {
+	"$_srcdir/scripts/version.sh" pkgver
+}
+
+build() {
+	arch-meson "$_srcdir" build
+	meson compile -C build
+}
+
+check() {
+	meson test -C build --print-errorlogs
+}
+
+package() {
+	meson install -C build --destdir "$pkgdir"
+}

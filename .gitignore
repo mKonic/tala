@@ -4,3 +4,6 @@
 /design/
 /compile_commands.json
 /.cache/
+/packaging/src/
+/packaging/pkg/
+/packaging/*.pkg.tar.*

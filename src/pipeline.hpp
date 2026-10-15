@@ -67,6 +67,11 @@ QString fit(const QString& before, const QString& next);
 Category category(const QString& appId, const QString& title);
 const char* categoryKey(Category c);  // "personal", "work", "email", "other"
 
+// Whether a language model's `edited` is plausibly `said` cleaned up, not an
+// answer or something else: about as long, mostly the same words (numbers
+// count as the same: "five five five" becomes "555").
+bool plausibleEdit(const QString& said, const QString& edited);
+
 } // namespace pipeline
 
 } // namespace tala

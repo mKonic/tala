@@ -158,6 +158,12 @@ Item {
                         }
                         TButton {
                             theme: home.theme
+                            visible: row.modelData.raw !== "" && row.modelData.raw !== row.modelData.text
+                            text: qsTr("Copy original")
+                            onClicked: tala.copy(row.modelData.raw)
+                        }
+                        TButton {
+                            theme: home.theme
                             visible: row.modelData.hasAudio
                             text: qsTr("Retry")
                             onClicked: tala.retry(row.modelData.id)

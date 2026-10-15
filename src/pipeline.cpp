@@ -1,6 +1,7 @@
 #include "pipeline.hpp"
 
 #include <QRegularExpression>
+#include <QSet>
 
 #include <algorithm>
 
@@ -287,6 +288,22 @@ const char* categoryKey(Category c) {
     case Category::Other: break;
     }
     return "other";
+}
+
+bool plausibleEdit(const QString& said, const QString& edited) {
+    static const QRegularExpression split("[^\\p{L}\\p{N}']+");
+    const QStringList a = said.toLower().split(split, Qt::SkipEmptyParts);
+    const QStringList b = edited.toLower().split(split, Qt::SkipEmptyParts);
+    if (b.isEmpty() || a.isEmpty())
+        return false;
+    const auto s = double(a.size()), e = double(b.size());
+    if (e > s * 1.3 + 3 || e < s * 0.2)
+        return false;
+    const QSet<QString> words(a.begin(), a.end());
+    qsizetype kept = 0;
+    for (const QString& w : b)
+        kept += words.contains(w) || w.front().isDigit();
+    return double(kept) >= 0.6 * e;
 }
 
 } // namespace tala::pipeline

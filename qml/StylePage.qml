@@ -136,6 +136,64 @@ Flickable {
             }
         }
 
+        SectionTitle { theme: page.theme; text: qsTr("Auto Cleanup"); Layout.topMargin: 8 }
+        Text {
+            Layout.fillWidth: true
+            text: qsTr("A language model on this computer edits each dictation, in every app. Your words as spoken stay in History.")
+            color: theme.secondary
+            font.pixelSize: theme.small
+            wrapMode: Text.Wrap
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+            readonly property string level: { tala.revision; return tala.setting("cleanup", "none") }
+            id: levels
+            Repeater {
+                model: [
+                    { id: "none", title: qsTr("None"), detail: qsTr("The rules only: fillers, commands, your dictionary."),
+                      sample: "So we could meet Tuesday, actually no, Wednesday at three." },
+                    { id: "light", title: qsTr("Light"), detail: qsTr("Self-corrections applied, grammar fixed, emails and numbers written out."),
+                      sample: "Let's meet Wednesday at three." },
+                    { id: "medium", title: qsTr("Medium"), detail: qsTr("May also reword for clarity, keeping your meaning."),
+                      sample: "Let's meet Wednesday at three instead." }
+                ]
+                Card {
+                    required property var modelData
+                    readonly property bool current: levels.level === modelData.id
+                    theme: page.theme
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: levelColumn.implicitHeight + 28
+                    border.width: current ? 2 : (theme.dark ? 0 : 1)
+                    border.color: current ? theme.accent : theme.separator
+                    color: levelHover.hovered && !current ? theme.cardHover : theme.card
+                    HoverHandler { id: levelHover }
+                    TapHandler { onTapped: tala.setSetting("cleanup", modelData.id) }
+                    ColumnLayout {
+                        id: levelColumn
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 14
+                        spacing: 6
+                        Text { text: modelData.title; color: theme.label; font.pixelSize: 16; font.weight: Font.DemiBold }
+                        Text { text: modelData.detail; color: theme.secondary; font.pixelSize: theme.small; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                        Text { text: modelData.sample; color: theme.label; font.pixelSize: theme.small; font.italic: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                    }
+                }
+            }
+        }
+        Text {
+            Layout.fillWidth: true
+            visible: levels.level !== "none" && tala.cleanupStatus !== ""
+            text: "Qwen3-4B · " + tala.cleanupStatus
+            color: theme.tertiary
+            font.pixelSize: theme.small
+            wrapMode: Text.Wrap
+        }
+
         SectionTitle { theme: page.theme; text: qsTr("Cleanup"); Layout.topMargin: 8 }
         Card {
             theme: page.theme

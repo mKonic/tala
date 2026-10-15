@@ -38,11 +38,11 @@ core = static_library('tala-core',
 core_dep = declare_dependency(link_with: core, dependencies: [qt, sqlite], include_directories: include_directories('src'))
 
 moc = qt6.compile_moc(headers: ['src/controller.hpp', 'src/engine.hpp', 'src/recorder.hpp', 'src/shortcuts.hpp',
-  'src/inserter.hpp', 'src/ui.hpp', 'src/context.hpp', 'src/filedecoder.hpp', 'src/screenshot.hpp'], dependencies: qt)
+  'src/inserter.hpp', 'src/ui.hpp', 'src/context.hpp', 'src/filedecoder.hpp', 'src/screenshot.hpp', 'src/cleanup.hpp'], dependencies: qt)
 resources = qt6.compile_resources(sources: 'qml/qml.qrc')
 
 executable('tala',
-  'src/main.cpp', 'src/controller.cpp', 'src/engine.cpp', 'src/recorder.cpp', 'src/shortcuts.cpp', 'src/inserter.cpp', 'src/context.cpp', 'src/filedecoder.cpp', 'src/screenshot.cpp',
+  'src/main.cpp', 'src/controller.cpp', 'src/engine.cpp', 'src/recorder.cpp', 'src/shortcuts.cpp', 'src/inserter.cpp', 'src/context.cpp', 'src/filedecoder.cpp', 'src/screenshot.cpp', 'src/cleanup.cpp',
   moc, resources, version_h, protocol_sources,
   dependencies: [core_dep, layershellqt, wayland_client, xkbcommon, pipewire],
   install: true,

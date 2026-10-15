@@ -9,6 +9,7 @@
 //   hands-free     press to start, press again to stop and paste.
 //   paste last / copy last, and cancel.
 
+#include "cleanup.hpp"
 #include "context.hpp"
 #include "engine.hpp"
 #include "filedecoder.hpp"
@@ -46,6 +47,8 @@ class Controller : public QObject {
     Q_PROPERTY(QString fileStatus READ fileStatus NOTIFY fileChanged)
     // A quick note's screenshot is being taken: the bar stays out of it.
     Q_PROPERTY(bool capturing READ capturing NOTIFY capturingChanged)
+    // Auto Cleanup's model: what it's doing, or why it can't.
+    Q_PROPERTY(QString cleanupStatus READ cleanupStatus NOTIFY cleanupChanged)
     Q_PROPERTY(double fileProgress READ fileProgress NOTIFY fileChanged)
 
 public:
@@ -89,6 +92,7 @@ public:
     QString fileStatus() const { return fileStatus_; }
     double fileProgress() const { return fileProgress_; }
     bool capturing() const { return capturing_; }
+    QString cleanupStatus() const { return cleanup_->status(); }
 
     Q_INVOKABLE QVariantList words() const;
     Q_INVOKABLE QString saveWord(qint64 id, const QString& word, const QString& misspelling);
@@ -111,6 +115,7 @@ public:
 signals:
     void fileChanged();
     void capturingChanged();
+    void cleanupChanged();
     void stateChanged();
     void levelChanged();
     void engineChanged();
@@ -139,6 +144,7 @@ private:
     void bump();
     PipelineOptions options(Category c = Category::Other) const;
     QString saveNote(const Dictation& d, const std::vector<float>& pcm) const;
+    void applyCleanupLevel();
     QStringList hotwords() const;
     QString audioDir() const;
     int keepDays() const;
@@ -151,6 +157,7 @@ private:
     std::unique_ptr<Engine> engine_;
     std::unique_ptr<Shortcuts> shortcuts_;
     std::unique_ptr<Context> context_;
+    std::unique_ptr<Cleanup> cleanup_;
     std::unique_ptr<FileDecoder> decoder_;
     QString fileStatus_;
     double fileProgress_ = 0;
