@@ -176,7 +176,18 @@ Flickable {
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 6
-                Text { text: "Phonon-2 · " + tala.engineStatus; color: theme.label; font.pixelSize: theme.body }
+                Row2 {
+                    title: "Phonon-2 · " + tala.engineStatus
+                    detail: qsTr("The model loads in a fraction of a second when you start dictating, and leaves memory once it has been idle this long.")
+                    TCombo {
+                        theme: page.theme
+                        width: 180
+                        readonly property var minutes: [1, 5, 30, 0]
+                        model: [qsTr("1 minute"), qsTr("5 minutes"), qsTr("30 minutes"), qsTr("Always loaded")]
+                        currentIndex: { tala.revision; return Math.max(0, minutes.indexOf(parseInt(tala.setting("engine_idle_minutes", "5")))) }
+                        onActivated: i => tala.setSetting("engine_idle_minutes", String(minutes[i]))
+                    }
+                }
                 Text {
                     Layout.fillWidth: true
                     text: qsTr("Fermion Research's speech model (CC-BY-4.0, from NVIDIA's Parakeet TDT 0.6B v3), running on this computer. Nothing you say leaves it.")
