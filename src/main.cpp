@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
     QSocketNotifier quitNotifier(signalfd(-1, &quitSignals, SFD_CLOEXEC | SFD_NONBLOCK), QSocketNotifier::Read);
     QObject::connect(&quitNotifier, &QSocketNotifier::activated, &app, &QApplication::quit);
     app.setApplicationName("tala");
+    app.setApplicationDisplayName("Tala");
     app.setApplicationVersion(TALA_VERSION);
     app.setQuitOnLastWindowClosed(false);
     const QIcon icon(QStringLiteral(":/tala/icons/tala.svg"));
@@ -159,12 +160,12 @@ int main(int argc, char** argv) {
 
     QSystemTrayIcon tray(app.windowIcon());
     QMenu menu;
-    menu.addAction(QObject::tr("Open tala"), showHub);
+    menu.addAction(QObject::tr("Open Tala"), showHub);
     menu.addAction(QObject::tr("Paste last transcript"), &controller, &Controller::pasteLast);
     menu.addSeparator();
     menu.addAction(QObject::tr("Quit"), &app, &QApplication::quit);
     tray.setContextMenu(&menu);
-    tray.setToolTip("tala");
+    tray.setToolTip("Tala");
     QObject::connect(&tray, &QSystemTrayIcon::activated, &app, [&](QSystemTrayIcon::ActivationReason r) {
         if (r == QSystemTrayIcon::Trigger)
             showHub();

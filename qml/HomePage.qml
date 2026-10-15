@@ -35,7 +35,7 @@ Item {
             Layout.fillWidth: true
             text: tala.triggers.dictate
                   ? qsTr("Hold %1 and speak; let go and the text is typed where your cursor is. Double-tap it to keep going hands-free.").arg(tala.triggers.dictate)
-                  : qsTr("Waiting for the desktop to give tala its keys.")
+                  : qsTr("Waiting for the desktop to give Tala its keys.")
             color: theme.secondary
             font.pixelSize: theme.body
             wrapMode: Text.Wrap

@@ -135,7 +135,7 @@ void Shortcuts::readShortcuts(const QDBusArgument& arg) {
 void Shortcuts::onBindResponse(uint code, const QVariantMap& results) {
     qCInfo(lc) << "bound" << code << results.keys();
     if (code != 0) {
-        emit failed(tr("the desktop didn't bind tala's shortcuts"));
+        emit failed(tr("the desktop didn't bind Tala's shortcuts"));
         return;
     }
     available_ = true;

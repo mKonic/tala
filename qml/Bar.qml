@@ -1,7 +1,7 @@
 // The bar at the bottom of the screen (Wispr Flow's Flow Bar): a small pill
 // at rest, a waveform while listening, dots while the model works. A click
 // on the resting pill starts hands-free dictation; a right click has
-// the microphone to use, "Hide for 1 hour" and "Open tala".
+// the microphone to use, "Hide for 1 hour" and "Open Tala".
 import QtQuick
 import QtQuick.Window
 
@@ -110,7 +110,7 @@ Window {
                 .concat(tala.devices.map(d => ({ kind: "mic", name: d.name, text: d.description })))
                 .concat([{ kind: "line" },
                          { kind: "hide", text: qsTr("Hide for 1 hour") },
-                         { kind: "open", text: qsTr("Open tala") }])
+                         { kind: "open", text: qsTr("Open Tala") }])
             Repeater {
                 model: menuRow.items
                 Rectangle {

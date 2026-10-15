@@ -184,7 +184,7 @@ bool Recorder::start(const QString& device) {
     }
     pw_thread_loop_lock(loop_);
     pw_properties* props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture",
-                                             PW_KEY_MEDIA_ROLE, "Communication", PW_KEY_APP_NAME, "tala",
+                                             PW_KEY_MEDIA_ROLE, "Communication", PW_KEY_APP_NAME, "Tala",
                                              PW_KEY_NODE_NAME, "tala-dictation", nullptr);
     if (!device.isEmpty())
         pw_properties_set(props, PW_KEY_TARGET_OBJECT, device.toUtf8().constData());
@@ -286,8 +286,8 @@ void Recorder::chime(Chime c) {
     }
     if (!player_) {
         pw_properties* props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
-                                                 PW_KEY_MEDIA_ROLE, "Notification", PW_KEY_APP_NAME, "tala", nullptr);
-        player_ = pw_stream_new(core_, "tala chime", props);
+                                                 PW_KEY_MEDIA_ROLE, "Notification", PW_KEY_APP_NAME, "Tala", nullptr);
+        player_ = pw_stream_new(core_, "Tala chime", props);
         if (player_) {
             pw_stream_add_listener(player_, &listeners_->player, &listeners_->playerEvents, this);
             std::uint8_t buf[1024];

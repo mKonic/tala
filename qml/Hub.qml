@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 760
     minimumHeight: 480
     visible: false
-    title: "tala"
+    title: "Tala"
     color: theme.window
 
     Theme { id: theme }
@@ -57,7 +57,7 @@ ApplicationWindow {
                 anchors.topMargin: 18
                 spacing: 2
                 Text {
-                    text: "tala"
+                    text: "Tala"
                     color: theme.label
                     font.pixelSize: 20
                     font.weight: Font.DemiBold

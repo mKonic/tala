@@ -231,7 +231,7 @@ void Controller::onPressed(const QString& id) {
         if (state_ != State::Idle)
             return;
         if (!store_.flag("command_mode", false)) {
-            emit notice(tr("Command Mode is off: turn it on in tala's Settings."));
+            emit notice(tr("Command Mode is off: turn it on in Tala's Settings."));
             return;
         }
         // The selection as it is now, before anything moves it.
@@ -588,7 +588,7 @@ void Controller::applyCleanupLevel() {
 
 QString Controller::notesDir() const {
     const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    return (docs.isEmpty() ? QDir::homePath() : docs) + QStringLiteral("/tala notes");
+    return (docs.isEmpty() ? QDir::homePath() : docs) + QStringLiteral("/Tala notes");
 }
 
 void Controller::openNotes() const {
@@ -775,7 +775,7 @@ void Controller::setAutostart(bool on) {
         QDir().mkpath(QFileInfo(autostartPath()).path());
         QFile f(autostartPath());
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-            f.write("[Desktop Entry]\nType=Application\nName=tala\nComment=Dictation, waiting for its key\n"
+            f.write("[Desktop Entry]\nType=Application\nName=Tala\nComment=Dictation, waiting for its key\n"
                     "Exec=tala --background\nIcon=io.github.mkonic.Tala\nNoDisplay=true\n");
     } else {
         QFile::remove(autostartPath());

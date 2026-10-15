@@ -44,7 +44,7 @@ Item {
         }
         Text {
             Layout.fillWidth: true
-            text: qsTr("Say the trigger and tala types what you saved. Pick something you wouldn't say by accident, like “my email signature”.")
+            text: qsTr("Say the trigger and Tala types what you saved. Pick something you wouldn't say by accident, like “my email signature”.")
             color: theme.secondary
             font.pixelSize: theme.body
             wrapMode: Text.Wrap

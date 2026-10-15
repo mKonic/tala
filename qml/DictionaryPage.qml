@@ -46,7 +46,7 @@ Item {
         }
         Text {
             Layout.fillWidth: true
-            text: qsTr("Names, products and jargon. tala listens for them, and a correction fixes a spelling that keeps coming out wrong.")
+            text: qsTr("Names, products and jargon. Tala listens for them, and a correction fixes a spelling that keeps coming out wrong.")
             color: theme.secondary
             font.pixelSize: theme.body
             wrapMode: Text.Wrap

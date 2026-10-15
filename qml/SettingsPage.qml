@@ -150,7 +150,7 @@ Flickable {
                     theme: page.theme
                     Layout.fillWidth: true
                     title: qsTr("Start at login")
-                    detail: qsTr("tala waits in the background for its key.")
+                    detail: qsTr("Tala waits in the background for its key.")
                     checked: { tala.revision; return tala.autostart() }
                     onToggled: on => tala.setAutostart(on)
                 }
@@ -220,7 +220,7 @@ Flickable {
                     font.pixelSize: theme.small
                     wrapMode: Text.Wrap
                 }
-                Text { text: "tala " + tala.version; color: theme.tertiary; font.pixelSize: theme.small; Layout.topMargin: 6 }
+                Text { text: "Tala " + tala.version; color: theme.tertiary; font.pixelSize: theme.small; Layout.topMargin: 6 }
             }
         }
     }
