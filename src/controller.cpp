@@ -217,7 +217,13 @@ void Controller::onReleased(const QString& id) {
 }
 
 void Controller::begin(bool locked) {
-    if (!recorder_->start(QString::fromStdString(store_.setting("mic", "")))) {
+    QString mic = QString::fromStdString(store_.setting("mic", ""));
+    if (!mic.isEmpty() && recorder_->ok() && !recorder_->has(mic)) {
+        // The chosen one isn't here (unplugged, the phone away): the default.
+        emit notice(tr("Your microphone isn't connected: using the default one."));
+        mic.clear();
+    }
+    if (!recorder_->start(mic)) {
         recorder_->chime(Recorder::Chime::Error);
         emit notice(tr("Couldn't open the microphone"));
         return;

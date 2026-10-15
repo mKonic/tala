@@ -80,7 +80,8 @@ Recorder::Recorder(QObject* parent) : QObject(parent), listeners_(std::make_uniq
         if (std::strcmp(type, PW_TYPE_INTERFACE_Node) != 0 || !props)
             return;
         const char* cls = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
-        if (!cls || std::strcmp(cls, "Audio/Source") != 0)
+        // Microphones, and the virtual ones filters make (noise suppression).
+        if (!cls || (std::strcmp(cls, "Audio/Source") != 0 && std::strcmp(cls, "Audio/Source/Virtual") != 0))
             return;
         const char* name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
         const char* desc = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
@@ -187,6 +188,9 @@ bool Recorder::start(const QString& device) {
                                              PW_KEY_NODE_NAME, "tala-dictation", nullptr);
     if (!device.isEmpty())
         pw_properties_set(props, PW_KEY_TARGET_OBJECT, device.toUtf8().constData());
+    // A microphone unplugged mid-dictation ends it (lost()), with what it
+    // heard, instead of carrying on from another one.
+    pw_properties_set(props, PW_KEY_NODE_DONT_RECONNECT, "true");
     stream_ = pw_stream_new(core_, "Dictation", props);
     bool ok = stream_ != nullptr;
     if (ok) {
@@ -249,6 +253,11 @@ void Recorder::onProcess() {
             }, Qt::QueuedConnection);
     }
     pw_stream_queue_buffer(stream_, b);
+}
+
+bool Recorder::has(const QString& device) const {
+    std::lock_guard lock(mutex_);
+    return std::ranges::any_of(nodes_, [&](const Node& n) { return n.name == device; });
 }
 
 QVariantList Recorder::devices() const {

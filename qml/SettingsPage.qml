@@ -60,7 +60,7 @@ Flickable {
                         id: micBox
                         theme: page.theme
                         width: 280
-                        readonly property var options: [{ name: "", description: qsTr("System default") }].concat(tala.devices)
+                        readonly property var options: [{ name: "", description: qsTr("Auto (the system's default)") }].concat(tala.devices)
                         model: options.map(o => o.description)
                         currentIndex: { tala.revision; const n = tala.setting("mic", ""); return Math.max(0, options.findIndex(o => o.name === n)) }
                         onActivated: i => tala.setSetting("mic", options[i].name)

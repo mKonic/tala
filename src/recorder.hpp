@@ -44,6 +44,8 @@ public:
 
     // {name, description} of every audio input.
     QVariantList devices() const;
+    // Whether a node of that name is here now.
+    bool has(const QString& device) const;
 
     enum class Chime { Start, Stop, Cancel, Error };
     void chime(Chime c);
