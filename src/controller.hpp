@@ -9,6 +9,7 @@
 //   hands-free     press to start, press again to stop and paste.
 //   paste last / copy last, and cancel.
 
+#include "context.hpp"
 #include "engine.hpp"
 #include "pipeline.hpp"
 #include "store.hpp"
@@ -82,7 +83,8 @@ public:
     Q_INVOKABLE bool autostart() const;
     Q_INVOKABLE void setAutostart(bool on);
     // What the pipeline makes of `text` with the current settings (Style page).
-    Q_INVOKABLE QString preview(const QString& text) const;
+    // `category`: "personal", "work", "email", "other" (whose style to use).
+    Q_INVOKABLE QString preview(const QString& text, const QString& category = QStringLiteral("other")) const;
 
 signals:
     void stateChanged();
@@ -111,7 +113,7 @@ private:
     void setState(State s);
     void setProblem(const QString& p);
     void bump();
-    PipelineOptions options() const;
+    PipelineOptions options(Category c = Category::Other) const;
     QStringList hotwords() const;
     QString audioDir() const;
     int keepDays() const;
@@ -123,6 +125,7 @@ private:
     std::unique_ptr<Inserter> inserter_;
     std::unique_ptr<Engine> engine_;
     std::unique_ptr<Shortcuts> shortcuts_;
+    std::unique_ptr<Context> context_;
 
     State state_ = State::Idle;
     bool locked_ = false;
@@ -132,6 +135,7 @@ private:
     int revision_ = 0;
     int run_ = 0;  // counts dictations, for timers that outlive one
     QString app_;  // where the dictation started
+    Category category_ = Category::Other;
     QElapsedTimer held_;
     QTimer tapWindow_;  // after a quick tap: waiting for the second one
     QTimer limit_;      // 20 minutes, Flow's cap

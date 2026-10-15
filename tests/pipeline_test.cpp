@@ -75,3 +75,36 @@ TEST(Pipeline, Continuing) {
     EXPECT_EQ(continuing("Line\n", "Next"), "Next");
     EXPECT_EQ(continuing({}, "Start"), "Start");
 }
+
+TEST(Pipeline, Fit) {
+    // After a word: a space, and mid-sentence the capital comes off.
+    EXPECT_EQ(fit("I think", "We should go."), " we should go.");
+    EXPECT_EQ(fit("I think ", "We should go."), "we should go.");
+    // A new sentence keeps it.
+    EXPECT_EQ(fit("Done.", "Next one."), " Next one.");
+    EXPECT_EQ(fit("Done. ", "Next one."), "Next one.");
+    // Start of a field or line, after a bracket.
+    EXPECT_EQ(fit("", "Hello."), "Hello.");
+    EXPECT_EQ(fit("Dear Sam,\n", "Thanks."), "Thanks.");
+    EXPECT_EQ(fit("see (", "Below."), "below.");
+    // I, acronyms and names with inner capitals stay.
+    EXPECT_EQ(fit("and then", "I left."), " I left.");
+    EXPECT_EQ(fit("and then", "I'm out."), " I'm out.");
+    EXPECT_EQ(fit("ask", "NASA about it."), " NASA about it.");
+    EXPECT_EQ(fit("on my", "iPhone"), " iPhone");
+    EXPECT_EQ(fit("ask", "McDonald's"), " McDonald's");
+    // Punctuation hugs the word before.
+    EXPECT_EQ(fit("Hello", ", world"), ", world");
+}
+
+TEST(Pipeline, Category) {
+    EXPECT_EQ(category("org.mozilla.thunderbird", ""), Category::Email);
+    EXPECT_EQ(category("Slack", "general - Acme"), Category::Work);
+    EXPECT_EQ(category("discord", ""), Category::Personal);
+    EXPECT_EQ(category("org.telegram.desktop", ""), Category::Personal);
+    EXPECT_EQ(category("google-chrome", "Inbox (3) - me@gmail.com - Gmail"), Category::Email);
+    EXPECT_EQ(category("firefox", "WhatsApp"), Category::Personal);
+    EXPECT_EQ(category("chromium", "general | Acme | Microsoft Teams"), Category::Work);
+    EXPECT_EQ(category("code-oss", "gmail.py - project"), Category::Other);
+    EXPECT_EQ(category("foot", ""), Category::Other);
+}

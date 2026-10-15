@@ -161,7 +161,9 @@ const ext_data_control_source_v1_listener kSourceListener = {
 };
 
 const zwlr_foreign_toplevel_handle_v1_listener kToplevelListener = {
-    .title = [](void*, zwlr_foreign_toplevel_handle_v1*, const char*) {},
+    .title = [](void* data, zwlr_foreign_toplevel_handle_v1* h, const char* title) {
+        static_cast<Inserter*>(data)->toplevels_[h].title = title;
+    },
     .app_id = [](void* data, zwlr_foreign_toplevel_handle_v1* h, const char* id) {
         static_cast<Inserter*>(data)->toplevels_[h].appId = id;
     },
@@ -288,6 +290,13 @@ QString Inserter::focusedScreen() const {
         if (t.activated && !t.outputs.empty())
             if (auto it = outputs_.find(t.outputs.front()); it != outputs_.end())
                 return QString::fromStdString(it->second.name);
+    return {};
+}
+
+QString Inserter::focusedTitle() const {
+    for (const auto& [h, t] : toplevels_)
+        if (t.activated)
+            return QString::fromStdString(t.title);
     return {};
 }
 

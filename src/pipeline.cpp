@@ -227,4 +227,66 @@ QString continuing(const QString& previous, const QString& next) {
     return ' ' + next;
 }
 
+QString fit(const QString& before, const QString& next) {
+    if (next.isEmpty())
+        return next;
+    QString out = next;
+    const bool lineStart = before.isEmpty() || before.endsWith('\n');
+    const QString trimmed = before.trimmed();
+    const bool sentenceStart = lineStart || trimmed.isEmpty() || QStringLiteral(".!?…").contains(trimmed.back());
+    if (!sentenceStart) {
+        // The first word, up to a space or punctuation.
+        qsizetype end = 0;
+        while (end < out.size() && (out[end].isLetterOrNumber() || out[end] == '\'' || out[end] == u'’'))
+            ++end;
+        const QString word = out.left(end);
+        const QString base = word.section(QRegularExpression("['’]"), 0, 0);
+        const bool acronym = word.size() > 1 && word == word.toUpper() && word != word.toLower();
+        const bool innerCaps = std::any_of(word.begin() + std::min<qsizetype>(1, word.size()), word.end(),
+                                           [](QChar c) { return c.isUpper(); });
+        if (!word.isEmpty() && word[0].isUpper() && base != "I" && !acronym && !innerCaps)
+            out[0] = out[0].toLower();
+    }
+    const QChar last = before.isEmpty() ? QChar() : before.back();
+    const bool joinsAfter = !lineStart && !last.isSpace() && !QStringLiteral("([{\"'“‘/-").contains(last);
+    if (joinsAfter && !QStringLiteral(",.;:!?)]}…").contains(out[0]))
+        out.prepend(' ');
+    return out;
+}
+
+Category category(const QString& appId, const QString& title) {
+    const QString a = appId.toLower(), t = title.toLower();
+    const auto any = [](const QString& s, std::initializer_list<const char*> words) {
+        return std::any_of(words.begin(), words.end(), [&](const char* w) { return s.contains(QLatin1String(w)); });
+    };
+    if (any(a, {"thunderbird", "betterbird", "evolution", "geary", "mailspring", "kmail", "claws-mail", "mailnag"}))
+        return Category::Email;
+    if (any(a, {"slack", "teams", "mattermost", "zulip", "rocket.chat", "zoom", "lark", "webex"}))
+        return Category::Work;
+    if (any(a, {"discord", "vesktop", "telegram", "signal", "whatsapp", "element", "fractal", "beeper", "messenger",
+                "dino", "gajim", "nheko", "cinny"}))
+        return Category::Personal;
+    // A web app: the browser's window title names the site.
+    if (any(a, {"chrom", "firefox", "brave", "vivaldi", "zen", "librewolf", "edge", "epiphany", "falkon",
+                "qutebrowser", "floorp", "opera", "waterfox"})) {
+        if (any(t, {"gmail", "outlook", "proton mail", "fastmail", "yahoo mail", "zoho mail", "tuta"}))
+            return Category::Email;
+        if (any(t, {"slack", "microsoft teams", "google chat", "mattermost", "zoom"}))
+            return Category::Work;
+        if (any(t, {"whatsapp", "messenger", "discord", "telegram", "instagram", "signal"}))
+            return Category::Personal;
+    }
+    return Category::Other;
+}
+
+const char* categoryKey(Category c) {
+    switch (c) {
+    case Category::Personal: return "personal";
+    case Category::Work: return "work";
+    case Category::Email: return "email";
+    case Category::Other: break;
+    }
+    return "other";
+}
+
 } // namespace tala::pipeline

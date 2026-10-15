@@ -18,6 +18,9 @@ enum class Style {
     VeryCasual,  // no final period, lowercase sentence starts
 };
 
+// Where the text goes, as Flow sorts apps for its styles.
+enum class Category { Personal, Work, Email, Other };
+
 struct Correction {
     QString from;  // what keeps coming out wrong
     QString to;    // the spelling wanted
@@ -53,6 +56,16 @@ QString run(const QString& raw, const PipelineOptions& o);
 // Joining onto what the same field got a moment ago: a space between
 // sentences, nothing at the start of a line.
 QString continuing(const QString& previous, const QString& next);
+
+// Fitted to the text before the caret: a space after a word, none at the
+// start of a line or after an opening bracket; mid-sentence, the model's
+// sentence-start capital comes off (not "I", not an acronym).
+QString fit(const QString& before, const QString& next);
+
+// The app (its app id, and in a browser the window title) as Flow's
+// categories: messengers, work chat, email, the rest.
+Category category(const QString& appId, const QString& title);
+const char* categoryKey(Category c);  // "personal", "work", "email", "other"
 
 } // namespace pipeline
 

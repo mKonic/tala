@@ -139,6 +139,15 @@ Flickable {
                 TSwitch {
                     theme: page.theme
                     Layout.fillWidth: true
+                    title: qsTr("Context awareness")
+                    detail: qsTr("Reads the few words before the cursor, so dictating into the middle of a sentence gets its spacing and capitals right. It turns on the desktop's accessibility, which apps use to show their text to screen readers; nothing leaves this computer.")
+                    checked: { tala.revision; return tala.setting("context", "0") === "1" }
+                    onToggled: on => tala.setSetting("context", on ? "1" : "0")
+                }
+                Line {}
+                TSwitch {
+                    theme: page.theme
+                    Layout.fillWidth: true
                     title: qsTr("Start at login")
                     detail: qsTr("tala waits in the background for its key.")
                     checked: { tala.revision; return tala.autostart() }

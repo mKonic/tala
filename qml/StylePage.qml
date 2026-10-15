@@ -1,4 +1,5 @@
-// Style: how dictated text should read, with a live preview of the rules.
+// Style: how dictated text should read, per kind of app (Flow's tabs), with
+// a live preview of the rules.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -10,7 +11,14 @@ Flickable {
     clip: true
     ScrollBar.vertical: ScrollBar {}
 
-    readonly property string style: { tala.revision; return tala.setting("style", "formal") }
+    property string category: "personal"
+    readonly property var categories: [
+        { id: "personal", title: qsTr("Personal messages"), detail: qsTr("Signal, WhatsApp, Telegram, Discord, Messenger and the like, in their apps or a browser.") },
+        { id: "work", title: qsTr("Work messages"), detail: qsTr("Slack, Teams, Mattermost, Google Chat, Zoom.") },
+        { id: "email", title: qsTr("Email"), detail: qsTr("Thunderbird, Evolution, Geary, and Gmail, Outlook or Proton Mail in a browser.") },
+        { id: "other", title: qsTr("Other"), detail: qsTr("Everything else: documents, notes, code, the web.") }
+    ]
+    readonly property string style: { tala.revision; return tala.setting("style." + category, tala.setting("style", "formal")) }
     readonly property var styles: [
         { id: "formal", title: qsTr("Formal."), detail: qsTr("Capitals and full punctuation."),
           sample: "Hey, are you free for lunch tomorrow? Let's do 12 if that works for you." },
@@ -28,6 +36,50 @@ Flickable {
         spacing: 16
 
         Text { text: qsTr("Style"); color: theme.label; font.pixelSize: theme.title; font.weight: Font.DemiBold }
+
+        // One style per kind of app.
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 36
+            radius: 10
+            color: theme.window
+            border.width: 1
+            border.color: theme.separator
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 3
+                spacing: 3
+                Repeater {
+                    model: page.categories
+                    Rectangle {
+                        required property var modelData
+                        readonly property bool current: page.category === modelData.id
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: current ? theme.card : tabHover.hovered ? theme.cardHover : "transparent"
+                        border.width: current && !theme.dark ? 1 : 0
+                        border.color: theme.separator
+                        HoverHandler { id: tabHover }
+                        TapHandler { onTapped: page.category = modelData.id }
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.title
+                            color: current ? theme.label : theme.secondary
+                            font.pixelSize: theme.small
+                            font.weight: current ? Font.DemiBold : Font.Normal
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            Layout.fillWidth: true
+            text: page.categories.find(c => c.id === page.category).detail
+            color: theme.tertiary
+            font.pixelSize: theme.small
+            wrapMode: Text.Wrap
+        }
         Text {
             Layout.fillWidth: true
             text: qsTr("How your dictation is written. Phonon-2 already punctuates and writes numbers as digits; these are the finishing touches.")
@@ -53,7 +105,7 @@ Flickable {
                     border.color: current ? theme.accent : theme.separator
                     color: hover.hovered && !current ? theme.cardHover : theme.card
                     HoverHandler { id: hover }
-                    TapHandler { onTapped: tala.setSetting("style", modelData.id) }
+                    TapHandler { onTapped: tala.setSetting("style." + page.category, modelData.id) }
                     ColumnLayout {
                         id: styleColumn
                         anchors.left: parent.left
@@ -129,7 +181,7 @@ Flickable {
                 id: result
                 anchors.fill: parent
                 anchors.margins: 12
-                text: { tala.revision; return tala.preview(tryIt.text) }
+                text: { tala.revision; return tala.preview(tryIt.text, page.category) }
                 color: theme.label
                 font.pixelSize: theme.body
                 wrapMode: Text.Wrap

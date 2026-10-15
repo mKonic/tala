@@ -43,7 +43,9 @@ Controller::Controller(Store& store, QObject* parent)
       recorder_(std::make_unique<Recorder>()),
       inserter_(std::make_unique<Inserter>()),
       engine_(std::make_unique<Engine>()),
-      shortcuts_(std::make_unique<Shortcuts>()) {
+      shortcuts_(std::make_unique<Shortcuts>()),
+      context_(std::make_unique<Context>()) {
+    context_->setEnabled(store_.flag("context", false));
     QDir().mkpath(audioDir());
     expireAudio();
 
@@ -238,6 +240,7 @@ void Controller::begin(bool locked) {
         return;
     }
     app_ = inserter_->focusedApp();
+    category_ = pipeline::category(app_, inserter_->focusedTitle());
     if (const QString screen = inserter_->focusedScreen(); !screen.isEmpty())
         emit screenWanted(screen);
     locked_ = locked;
@@ -331,7 +334,7 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
             return;
         }
         d.raw = t.text.toStdString();
-        d.text = pipeline::run(t.text, options()).toStdString();
+        d.text = pipeline::run(t.text, options(category_)).toStdString();
         d.status = d.text.empty() ? "empty" : "ok";
         deliver(std::move(d), true);
     });
@@ -349,7 +352,11 @@ void Controller::deliver(Dictation d, bool paste) {
     }
     QString text = QString::fromStdString(d.text);
     const QString app = QString::fromStdString(d.app);
-    if (app == lastApp_ && lastTime_.isValid() && lastTime_.elapsed() < kJoinMs)
+    // The field says what's before the caret; else a guess from the last
+    // dictation into the same app a moment ago.
+    if (const std::optional<QString> before = context_->beforeCaret())
+        text = pipeline::fit(*before, text);
+    else if (app == lastApp_ && lastTime_.isValid() && lastTime_.elapsed() < kJoinMs)
         text = pipeline::continuing(lastText_, text);
     lastApp_ = app;
     lastText_ = text;
@@ -498,6 +505,8 @@ void Controller::setSetting(const QString& key, const QString& value) {
         expireAudio();
     if (key == "engine_idle_minutes")
         engine_->setIdleMinutes(value.toInt());
+    if (key == "context")
+        context_->setEnabled(value == "1");
     bump();
 }
 
@@ -538,11 +547,13 @@ void Controller::configureShortcuts() {
     shortcuts_->configure();
 }
 
-PipelineOptions Controller::options() const {
+PipelineOptions Controller::options(Category c) const {
     PipelineOptions o;
     o.commands = store_.flag("commands", true);
     o.fillers = store_.flag("fillers", true);
-    const std::string style = store_.setting("style", "formal");
+    // Each category's own (Flow's Style tabs), else the one style set before.
+    const std::string style =
+        store_.setting(std::string("style.") + pipeline::categoryKey(c), store_.setting("style", "formal"));
     o.style = style == "casual" ? Style::Casual : style == "very_casual" ? Style::VeryCasual : Style::Formal;
     for (const Word& w : store_.words())
         if (!w.misspelling.empty())
@@ -559,8 +570,12 @@ QStringList Controller::hotwords() const {
     return out;
 }
 
-QString Controller::preview(const QString& text) const {
-    return pipeline::run(text, options());
+QString Controller::preview(const QString& text, const QString& category) const {
+    const Category c = category == "personal" ? Category::Personal
+                       : category == "work"   ? Category::Work
+                       : category == "email"  ? Category::Email
+                                              : Category::Other;
+    return pipeline::run(text, options(c));
 }
 
 } // namespace tala

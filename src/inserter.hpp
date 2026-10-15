@@ -50,6 +50,7 @@ public:
     QString missing() const;
     // The focused window's app id, when the desktop says.
     QString focusedApp() const;
+    QString focusedTitle() const;
     // The connector name (DP-1, …) of the screen the focused window is on.
     QString focusedScreen() const;
 
@@ -69,6 +70,7 @@ public:
     };
     struct Toplevel {
         std::string appId;
+        std::string title;
         bool activated = false;
         std::vector<wl_output*> outputs;
     };
