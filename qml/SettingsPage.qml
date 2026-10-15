@@ -17,6 +17,7 @@ Flickable {
         "cancel": qsTr("Cancel"),
         "paste-last": qsTr("Paste last transcript"),
         "copy-last": qsTr("Copy last transcript"),
+        "command": qsTr("Command Mode (hold)"),
     })
 
     component Row2: RowLayout {
@@ -80,7 +81,7 @@ Flickable {
                 anchors.margins: 14
                 spacing: 10
                 Repeater {
-                    model: ["dictate", "hands-free", "cancel", "paste-last", "copy-last"]
+                    model: ["dictate", "hands-free", "command", "cancel", "paste-last", "copy-last"]
                     RowLayout {
                         required property string modelData
                         Layout.fillWidth: true
@@ -165,6 +166,15 @@ Flickable {
                         currentIndex: { tala.revision; return Math.max(0, days.indexOf(parseInt(tala.setting("keep_audio_days", "14")))) }
                         onActivated: i => tala.setSetting("keep_audio_days", String(days[i]))
                     }
+                }
+                Line {}
+                TSwitch {
+                    theme: page.theme
+                    Layout.fillWidth: true
+                    title: qsTr("Command Mode")
+                    detail: qsTr("Hold %1, say what to do (“make this friendlier”, “turn it into a list”, “write a reply saying I'm in”), let go: the selection is rewritten, or the text written where your cursor is. Uses the same local model as Auto Cleanup.").arg(tala.triggers["command"] || qsTr("its key"))
+                    checked: { tala.revision; return tala.setting("command_mode", "0") === "1" }
+                    onToggled: on => tala.setSetting("command_mode", on ? "1" : "0")
                 }
                 Line {}
                 Row2 {

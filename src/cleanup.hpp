@@ -42,6 +42,8 @@ public:
     ~Cleanup() override;
 
     void setLevel(Level l);
+    // Command Mode wants the model too, whatever the cleanup level.
+    void setCommands(bool on);
     Level level() const { return level_; }
     void setIdleMinutes(int minutes);
     // Downloads the model or starts the server as needed; a dictation
@@ -49,6 +51,9 @@ public:
     void prepare();
     // `words`: the dictionary's, to be spelled as given.
     void clean(const QString& text, const QStringList& words, Done done);
+    // Command Mode: `instruction` carried out on `selection` (or, without
+    // one, the text it asks for written out); the reply as it should be typed.
+    void command(const QString& instruction, const QString& selection, const QStringList& words, Done done);
 
     State state() const { return state_; }
     QString status() const { return status_; }
@@ -61,7 +66,11 @@ private:
         QString text;
         QStringList words;
         Done done;
+        QString instruction;  // set: a command, not a cleanup
+        bool command = false;
     };
+    bool wanted() const { return level_ != Level::None || commands_; }
+    void submit(Request r, int deadlineMs);
 
     void setState(State s, const QString& status);
     void download();
@@ -73,6 +82,7 @@ private:
     QString program() const;
 
     Level level_ = Level::None;
+    bool commands_ = false;
     State state_ = State::Off;
     QString status_;
     QNetworkAccessManager net_;

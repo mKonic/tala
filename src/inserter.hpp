@@ -51,12 +51,17 @@ public:
     // The focused window's app id, when the desktop says.
     QString focusedApp() const;
     QString focusedTitle() const;
+    // The selected text (the primary selection), "" when there's none.
+    void selectedText(std::function<void(const QString&)> done);
     // The connector name (DP-1, …) of the screen the focused window is on.
     QString focusedScreen() const;
 
     // Pastes `text` into the focused field. `done(false)` when it couldn't
     // (the text is then left on the clipboard).
-    void insert(const QString& text, std::function<void(bool)> done);
+    // `replacing`: the text goes over a selection, which must stay selected
+    // until the paste lands: the primary selection is left alone (GTK drops
+    // its selection the moment another app takes it).
+    void insert(const QString& text, std::function<void(bool)> done, bool replacing = false);
     // Just the clipboard.
     void copy(const QString& text);
 

@@ -138,7 +138,7 @@ private:
     void finish();
     void discard(bool chime = true);
     void process(std::vector<float> pcm, std::int64_t retryOf = 0);
-    void deliver(Dictation d, bool paste);
+    void deliver(Dictation d, bool paste, bool fit = true);
     void setState(State s);
     void setProblem(const QString& p);
     void bump();
@@ -176,6 +176,8 @@ private:
     QTimer tapWindow_;  // after a quick tap: waiting for the second one
     QTimer noteWindow_;  // after the second: a third makes it a quick note
     bool note_ = false;  // this dictation is a quick note, not pasted
+    bool command_ = false;  // this one is Command Mode's instruction
+    QString selection_;     // what it applies to
     QString shot_;       // its screenshot
     bool capturing_ = false;
     QString title_;      // the focused window's title when it began

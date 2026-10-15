@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTcpServer>
 
@@ -119,9 +120,20 @@ void Cleanup::setState(State s, const QString& status) {
     emit stateChanged();
 }
 
+void Cleanup::setCommands(bool on) {
+    commands_ = on;
+    if (!wanted()) {
+        setLevel(Level::None);
+        return;
+    }
+    if (state_ == State::Off)
+        setState(State::Stopped, {});
+    prepare();
+}
+
 void Cleanup::setLevel(Level l) {
     level_ = l;
-    if (l == Level::None) {
+    if (!wanted()) {
         if (fetch_)
             fetch_->abort();
         if (server_)
@@ -142,7 +154,7 @@ void Cleanup::setIdleMinutes(int minutes) {
 }
 
 void Cleanup::prepare() {
-    if (level_ == Level::None || state_ == State::Downloading || state_ == State::Starting || state_ == State::Ready)
+    if (!wanted() || state_ == State::Downloading || state_ == State::Starting || state_ == State::Ready)
         return;
     if (program().isEmpty()) {
         setState(State::NoServer, tr("Needs llama.cpp's llama-server (Arch: llama-cpp and ggml-cuda or ggml-vulkan)"));
@@ -189,14 +201,14 @@ void Cleanup::download() {
             const QString why = r->error() != QNetworkReply::NoError ? r->errorString()
                                                                      : tr("the download doesn't match its checksum");
             part_->remove();
-            setState(level_ == Level::None ? State::Off : State::Failed, tr("Couldn't download the model: %1").arg(why));
+            setState(!wanted() ? State::Off : State::Failed, tr("Couldn't download the model: %1").arg(why));
             failAll();
             return;
         }
         QFile::remove(model());
         part_->rename(model());
         setState(State::Stopped, {});
-        if (level_ != Level::None && !waiting_.empty())
+        if (wanted() && !waiting_.empty())
             launch();
     });
 }
@@ -219,7 +231,7 @@ void Cleanup::launch() {
         health_.stop();
         const bool idle = state_ == State::Ready;
         failAll();
-        if (level_ == Level::None)
+        if (!wanted())
             setState(State::Off, {});
         else if (idle)
             setState(State::Stopped, {});
@@ -241,7 +253,7 @@ void Cleanup::failAll() {
     auto waiting = std::move(waiting_);
     waiting_.clear();
     for (Request& r : waiting)
-        r.done(r.text, false);
+        r.done(r.command ? QString() : r.text, false);
 }
 
 void Cleanup::clean(const QString& text, const QStringList& words, Done done) {
@@ -249,16 +261,33 @@ void Cleanup::clean(const QString& text, const QStringList& words, Done done) {
         done(text, false);
         return;
     }
-    // Whatever happens, the dictation is typed in time.
+    submit(Request{text, words, std::move(done)}, kDeadlineMs);
+}
+
+void Cleanup::command(const QString& instruction, const QString& selection, const QStringList& words, Done done) {
+    if (!wanted()) {
+        done({}, false);
+        return;
+    }
+    Request r{selection, words, std::move(done)};
+    r.instruction = instruction;
+    r.command = true;
+    // Writing takes longer than tidying; the first one may wait for the model to load.
+    submit(std::move(r), 45000);
+}
+
+void Cleanup::submit(Request r, int deadlineMs) {
+    // Whatever happens, an answer comes in time: a cleanup's falls back to
+    // its text, a command's to nothing.
     auto answered = std::make_shared<bool>(false);
-    Done once = [done = std::move(done), answered](const QString& t, bool edited) {
+    const QString fallback = r.command ? QString() : r.text;
+    r.done = [done = std::move(r.done), answered](const QString& t, bool edited) {
         if (!*answered) {
             *answered = true;
             done(t, edited);
         }
     };
-    QTimer::singleShot(kDeadlineMs, this, [once, text] { once(text, false); });
-    Request r{text, words, once};
+    QTimer::singleShot(deadlineMs, this, [d = r.done, fallback] { d(fallback, false); });
     if (state_ == State::Ready) {
         send(std::move(r));
         return;
@@ -267,16 +296,29 @@ void Cleanup::clean(const QString& text, const QStringList& words, Done done) {
     prepare();
 }
 
+namespace {
+
+const char* kCommand =
+    "You carry out a spoken instruction for someone working by voice. Reply with exactly the text to type in "
+    "place of their selection (or, with no selection, the text the instruction asks for): no preamble, no "
+    "quotation marks around it, no explanation. Keep the selection's language unless told otherwise.";
+
+} // namespace
+
 void Cleanup::send(Request r) {
     idle_.stop();
-    QString system = QString::fromLatin1(kBase) + (level_ == Level::Medium ? kMedium : kLight) + kExamples;
+    QString system = r.command ? QString::fromLatin1(kCommand)
+                               : QString::fromLatin1(kBase) + (level_ == Level::Medium ? kMedium : kLight) + kExamples;
     if (!r.words.isEmpty())
         system += "\n\nSpell these words exactly as written: " + r.words.mid(0, 50).join(", ") + '.';
+    const QString user = !r.command ? "<dictation>" + r.text + "</dictation>"
+                         : r.text.isEmpty() ? "Instruction: " + r.instruction
+                                            : "Instruction: " + r.instruction + "\n\nSelection:\n" + r.text;
     const QJsonObject body{
         {"messages", QJsonArray{QJsonObject{{"role", "system"}, {"content", system}},
-                                QJsonObject{{"role", "user"}, {"content", "<dictation>" + r.text + "</dictation>"}}}},
-        {"temperature", 0},
-        {"max_tokens", std::max<qsizetype>(64, r.text.size())},
+                                QJsonObject{{"role", "user"}, {"content", user}}}},
+        {"temperature", r.command ? 0.3 : 0.0},
+        {"max_tokens", r.command ? 1024 : std::max<qsizetype>(64, r.text.size())},
     };
     QNetworkRequest req(QUrl(QStringLiteral("http://127.0.0.1:%1/v1/chat/completions").arg(port_)));
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -291,6 +333,13 @@ void Cleanup::send(Request r) {
         const QJsonObject o = QJsonDocument::fromJson(reply->readAll()).object();
         const QString out =
             o["choices"].toArray().first().toObject()["message"].toObject()["content"].toString().trimmed();
+        if (r.command) {
+            // Markdown's line breaks ("item  \n") are spaces typed for nothing.
+            static const QRegularExpression trailing("[ \\t]+$", QRegularExpression::MultilineOption);
+            const QString text = QString(out).remove(trailing);
+            r.done(reply->error() == QNetworkReply::NoError ? text : QString(), !text.isEmpty());
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError || out.isEmpty() || !pipeline::plausibleEdit(r.text, out)) {
             if (!out.isEmpty())
                 qCInfo(lc) << "not an edit of what was said, kept the original:" << out.left(80);

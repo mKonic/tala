@@ -441,6 +441,22 @@ void Inserter::snapshot(std::function<void(Saved, Saved)> done) {
     snap->deadline.start(300);
 }
 
+void Inserter::selectedText(std::function<void(const QString&)> done) {
+    if (!device_) {
+        done({});
+        return;
+    }
+    snapshot([done = std::move(done)](Saved, Saved primary) {
+        for (const char* want : {"text/plain;charset=utf-8", "UTF8_STRING", "text/plain"})
+            for (const auto& [mime, bytes] : primary.data)
+                if (mime == want) {
+                    done(QString::fromUtf8(bytes));
+                    return;
+                }
+        done({});
+    });
+}
+
 bool Inserter::ensureKeyboard() {
     if (keyboard_)
         return true;
@@ -503,7 +519,7 @@ void Inserter::copy(const QString& text) {
     flush();
 }
 
-void Inserter::insert(const QString& text, std::function<void(bool)> done) {
+void Inserter::insert(const QString& text, std::function<void(bool)> done, bool replacing) {
     if (!missing().isEmpty() || !device_ || !ensureKeyboard()) {
         copy(text);
         done(false);
@@ -514,14 +530,14 @@ void Inserter::insert(const QString& text, std::function<void(bool)> done) {
         restore();
     paste_ = std::make_unique<Paste>();
     paste_->done = std::move(done);
-    snapshot([this, text](Saved clipboard, Saved primary) {
+    snapshot([this, text, replacing](Saved clipboard, Saved primary) {
         if (!paste_)
             return;
         paste_->clipboard = std::move(clipboard);
         paste_->primary = std::move(primary);
         auto content = std::make_shared<const Saved>(textContent(text));
         clipboardSource_ = makeSource(content, false);
-        primarySource_ = makeSource(content, true);
+        primarySource_ = replacing ? nullptr : makeSource(content, true);
         // The compositor has the new selections before the key arrives.
         wl_display_roundtrip(display_);
         pressPaste();

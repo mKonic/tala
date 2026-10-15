@@ -52,6 +52,7 @@ Controller::Controller(Store& store, QObject* parent)
     connect(cleanup_.get(), &Cleanup::stateChanged, this, &Controller::cleanupChanged);
     cleanup_->setIdleMinutes(QString::fromStdString(store_.setting("engine_idle_minutes", "5")).toInt());
     applyCleanupLevel();
+    cleanup_->setCommands(store_.flag("command_mode", false));
     noteWindow_.setSingleShot(true);
     noteWindow_.setInterval(kTapMs);
     context_->setEnabled(store_.flag("context", false));
@@ -100,6 +101,9 @@ Controller::Controller(Store& store, QObject* parent)
          Shortcuts::escapeWorks() ? "CTRL+LOGO" : "CTRL+LOGO+d"},
         {"hands-free", tr("Hands-free dictation (press to start and stop)"), "CTRL+LOGO+space"},
         {"cancel", tr("Cancel dictation"), "CTRL+LOGO+BackSpace"},
+        // Flow's Ctrl+Win+Alt, held.
+        {"command", tr("Command Mode (hold, say what to do with the selection)"),
+         Shortcuts::escapeWorks() ? "CTRL+LOGO+ALT" : "CTRL+ALT+LOGO+d"},
         {"paste-last", tr("Paste last transcript"), "SHIFT+ALT+z"},
         {"copy-last", tr("Copy last transcript"), "SHIFT+ALT+x"},
     });
@@ -223,6 +227,20 @@ void Controller::onPressed(const QString& id) {
             else
                 finish();
         }
+    } else if (id == "command") {
+        if (state_ != State::Idle)
+            return;
+        if (!store_.flag("command_mode", false)) {
+            emit notice(tr("Command Mode is off: turn it on in tala's Settings."));
+            return;
+        }
+        // The selection as it is now, before anything moves it.
+        selection_.clear();
+        inserter_->selectedText([this](const QString& s) { selection_ = s; });
+        begin(false);
+        command_ = state_ == State::Recording;
+        if (command_)
+            emit notice(selection_.isEmpty() ? tr("Say what to write") : tr("Say what to do with the selection"));
     } else if (id == "cancel" || id == "escape") {
         cancel();
     } else if (id == "paste-last") {
@@ -233,6 +251,11 @@ void Controller::onPressed(const QString& id) {
 }
 
 void Controller::onReleased(const QString& id, bool cancelled) {
+    if (id == "command") {
+        if (state_ == State::Recording && command_)
+            cancelled ? discard(false) : finish();
+        return;
+    }
     if (id != "dictate")
         return;
     pttDown_ = false;
@@ -268,6 +291,7 @@ void Controller::begin(bool locked) {
     app_ = inserter_->focusedApp();
     title_ = inserter_->focusedTitle();
     note_ = false;
+    command_ = false;
     shot_.clear();
     category_ = pipeline::category(app_, inserter_->focusedTitle());
     if (const QString screen = inserter_->focusedScreen(); !screen.isEmpty())
@@ -286,6 +310,8 @@ void Controller::begin(bool locked) {
     setState(State::Recording);
     engine_->start();
     cleanup_->prepare();
+    if (store_.flag("command_mode", false))
+        cleanup_->setCommands(true);
 }
 
 void Controller::toggle() {
@@ -351,7 +377,10 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
     }
     const bool note = note_;
     note_ = false;
-    engine_->transcribe(pcm, hotwords(), [this, d, retryOf, note, pcm](const Transcript& t) mutable {
+    const bool command = command_;
+    command_ = false;
+    const QString selection = selection_;
+    engine_->transcribe(pcm, hotwords(), [this, d, retryOf, note, pcm, command, selection](const Transcript& t) mutable {
         if (!t.ok) {
             d.status = "failed";
             if (retryOf)
@@ -366,6 +395,27 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
             return;
         }
         d.raw = t.text.toStdString();
+        if (command && !retryOf) {
+            // Command Mode: the instruction (fillers out), then the model's
+            // text in place of the selection, as it returns it.
+            PipelineOptions o;
+            o.commands = false;
+            const QString instruction = pipeline::run(t.text, o);
+            cleanup_->command(instruction, selection, hotwords(), [this, d](const QString& out, bool) mutable {
+                if (out.isEmpty()) {
+                    d.status = "failed";
+                    d.id = store_.add(d);
+                    bump();
+                    setState(State::Idle);
+                    emit notice(tr("Command Mode couldn't do that. Is llama-server there?"));
+                    return;
+                }
+                d.text = out.toStdString();
+                d.status = "command";
+                deliver(std::move(d), true, false);
+            });
+            return;
+        }
         if (note && !retryOf) {
             // Notes are for reading back: no spoken commands, the Other style.
             PipelineOptions o = options(Category::Other);
@@ -396,7 +446,7 @@ void Controller::process(std::vector<float> pcm, std::int64_t retryOf) {
     });
 }
 
-void Controller::deliver(Dictation d, bool paste) {
+void Controller::deliver(Dictation d, bool paste, bool fit) {
     if (d.id)
         store_.update(d);
     else
@@ -410,10 +460,13 @@ void Controller::deliver(Dictation d, bool paste) {
     const QString app = QString::fromStdString(d.app);
     // The field says what's before the caret; else a guess from the last
     // dictation into the same app a moment ago.
-    if (const std::optional<QString> before = context_->beforeCaret())
+    // (Command Mode's text goes in place of a selection, as it is.)
+    if (!fit) {
+    } else if (const std::optional<QString> before = context_->beforeCaret()) {
         text = pipeline::fit(*before, text);
-    else if (app == lastApp_ && lastTime_.isValid() && lastTime_.elapsed() < kJoinMs)
+    } else if (app == lastApp_ && lastTime_.isValid() && lastTime_.elapsed() < kJoinMs) {
         text = pipeline::continuing(lastText_, text);
+    }
     lastApp_ = app;
     lastText_ = text;
     lastTime_.start();
@@ -421,7 +474,7 @@ void Controller::deliver(Dictation d, bool paste) {
         setState(State::Idle);
         if (!read)
             emit notice(tr("Couldn't paste here. The text is on the clipboard."));
-    });
+    }, !fit);
 }
 
 void Controller::retry(qint64 id) {
@@ -690,6 +743,8 @@ void Controller::setSetting(const QString& key, const QString& value) {
         context_->setEnabled(value == "1");
     if (key == "cleanup")
         applyCleanupLevel();
+    if (key == "command_mode")
+        cleanup_->setCommands(value == "1");
     if (key == "engine_idle_minutes")
         cleanup_->setIdleMinutes(value.toInt());
     bump();
