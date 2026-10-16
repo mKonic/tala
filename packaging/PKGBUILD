@@ -9,7 +9,7 @@
 # (171 MB, each file pinned by SHA-256), as the app says while it does; Auto
 # Cleanup's model (Qwen3-4B, 2.5 GB) likewise into ~/.local/share/tala/llm when
 # it's first turned on.
-pkgname=tala
+pkgname=tala-dictation
 # Replaced by pkgver() below on every makepkg run; never edited by hand.
 pkgver=0
 pkgrel=1
@@ -25,6 +25,9 @@ checkdepends=('gtest')
 optdepends=('llama-cpp: Auto Cleanup and Command Mode (with ggml-cuda or ggml-vulkan for the GPU)'
             'at-spi2-core: context awareness (the words before the cursor)'
             'atrium: Ctrl+Super held to dictate, and Escape to cancel while dictating')
+
+# Before 0.1.5 the package was called tala, which the AUR's (unrelated, 0.3+) D2 layout plugin also is.
+conflicts=('tala<0.2')
 
 source=()
 sha256sums=()
