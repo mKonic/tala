@@ -20,8 +20,8 @@ Releases are attached to their tag rather than published to the AUR, so they ins
 from the release assets.
 
 ```sh
-curl -LO https://github.com/mKonic/tala/releases/download/v0.1.3/tala-0.1.3-1-x86_64.pkg.tar.zst
-sudo pacman -U tala-0.1.3-1-x86_64.pkg.tar.zst
+curl -LO https://github.com/mKonic/tala/releases/download/v0.1.4/tala-0.1.4-1-x86_64.pkg.tar.zst
+sudo pacman -U tala-0.1.4-1-x86_64.pkg.tar.zst
 ```
 
 ## License

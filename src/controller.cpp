@@ -58,6 +58,12 @@ Controller::Controller(Store& store, QObject* parent)
     context_->setEnabled(store_.flag("context", false));
     QDir().mkpath(audioDir());
     expireAudio();
+    // Starting at login is on until turned off, as in Flow: Tala's keys do
+    // nothing while it isn't running.
+    if (!store_.flag("autostart_set", false)) {
+        setAutostart(true);
+        store_.set("autostart_set", "1");
+    }
 
     connect(recorder_.get(), &Recorder::level, this, [this](double v) {
         level_ = v;
