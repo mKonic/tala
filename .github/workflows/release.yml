@@ -28,8 +28,11 @@ jobs:
       GH_REPO: ${{ github.repository }}
 
     steps:
+      # The image knows one mirror; others behind it, for when that one drops files.
       - name: Set up the build machine
         run: |
+          printf 'Server = %s/$repo/os/$arch\n' https://fastly.mirror.pkgbuild.com https://geo.mirror.pkgbuild.com \
+            https://mirrors.kernel.org/archlinux https://mirror.rackspace.com/archlinux > /etc/pacman.d/mirrorlist
           pacman -Syu --noconfirm --needed git github-cli
           git config --global --add safe.directory '*'
 
